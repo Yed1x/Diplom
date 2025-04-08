@@ -1,4 +1,3 @@
-# app.py — расширенный, премиум-уровень интерфейс
 import streamlit as st
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing import image
@@ -48,61 +47,83 @@ def detect_color_preview(uploaded_file):
         st.error(f"❌ Не удалось открыть изображение: {e}")
         return "Ошибка ❌", 0, None
 
-# 🧾 История
+# 🧾 История с фильтрацией
 if os.path.exists(log_file):
     try:
         df_log = pd.read_csv(log_file, encoding='utf-8', errors='replace')
         if "Цвет" not in df_log.columns:
             df_log["Цвет"] = "—"
+        
+        # Фильтры
         st.subheader("📋 История предсказаний")
+        color_filter = st.selectbox("Фильтр по цвету", options=["Все", "Чёрная", "Белая"])
+        class_filter = st.selectbox("Фильтр по классу", options=["Все"] + list(class_labels.values()))
+        
+        # Применяем фильтры
+        if color_filter != "Все":
+            df_log = df_log[df_log["Цвет"] == color_filter]
+        
+        if class_filter != "Все":
+            df_log = df_log[df_log["Класс"] == class_filter]
+        
         st.dataframe(df_log.tail(5), use_container_width=True)
     except:
         st.warning("⚠️ Лог повреждён или не читается")
 
-# 📤 Загрузка и предсказание
-uploaded_file = st.file_uploader("Загрузите изображение фигуры", type=["jpg", "jpeg", "png"])
+# 📤 Загрузка и предсказание для нескольких изображений
+uploaded_files = st.file_uploader("Загрузите изображения фигур", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 
-if uploaded_file:
-    st.image(uploaded_file, caption="🖼️ Загружено", use_container_width=True)
+if uploaded_files:
+    predictions = []
+    
+    for uploaded_file in uploaded_files:
+        st.image(uploaded_file, caption=f"🖼️ Загружено: {uploaded_file.name}", use_container_width=True)
 
-    st.write("🧪 Пытаемся определить цвет через detect_color_preview")
-    fig_color, brightness, center_crop = detect_color_preview(uploaded_file)
+        st.write("🧪 Пытаемся определить цвет через detect_color_preview")
+        fig_color, brightness, center_crop = detect_color_preview(uploaded_file)
 
-    if center_crop:
-        st.image(center_crop, caption=f"🔍 Центр для анализа цвета (яркость: {brightness:.2f})", use_container_width=True)
+        if center_crop:
+            st.image(center_crop, caption=f"🔍 Центр для анализа цвета (яркость: {brightness:.2f})", use_container_width=True)
 
-    color_emoji = "⚫️" if "Чёрная" in fig_color else "⚪️" if "Белая" in fig_color else "❔"
-    st.markdown(f"### {color_emoji} Цвет фигуры: **{fig_color}**")
+        color_emoji = "⚫️" if "Чёрная" in fig_color else "⚪️" if "Белая" in fig_color else "❔"
+        st.markdown(f"### {color_emoji} Цвет фигуры: **{fig_color}**")
 
-    img = image.load_img(uploaded_file, target_size=(224, 224))
-    x = image.img_to_array(img)
-    x = np.expand_dims(x, axis=0) / 255.0
+        img = image.load_img(uploaded_file, target_size=(224, 224))
+        x = image.img_to_array(img)
+        x = np.expand_dims(x, axis=0) / 255.0
 
-    prediction = model.predict(x)[0]
-    idx = np.argmax(prediction)
-    confidence = float(np.max(prediction)) * 100
-    predicted_class = class_labels[list(class_labels.keys())[idx]]
+        prediction = model.predict(x)[0]
+        idx = np.argmax(prediction)
+        confidence = float(np.max(prediction)) * 100
+        predicted_class = class_labels[list(class_labels.keys())[idx]]
 
-    st.success(f"🟢 Модель определила: **{predicted_class}**, цвет: **{fig_color}**, уверенность: **{confidence:.2f}%**")
+        st.success(f"🟢 Модель определила: **{predicted_class}**, цвет: **{fig_color}**, уверенность: **{confidence:.2f}%**")
 
-    # 📊 График уверенности
-    st.subheader("📊 Уверенность по классам")
-    fig, ax = plt.subplots()
-    ax.bar(class_labels.values(), prediction * 100)
-    ax.set_ylabel('%')
-    ax.set_title('Уверенность модели')
-    st.pyplot(fig)
+        # 📊 График уверенности
+        st.subheader("📊 Уверенность по классам")
+        fig, ax = plt.subplots()
+        ax.bar(class_labels.values(), prediction * 100)
+        ax.set_ylabel('%')
+        ax.set_title('Уверенность модели')
+        st.pyplot(fig)
+
+        # Добавляем результаты в список
+        predictions.append({
+            "Файл": uploaded_file.name,
+            "Класс": predicted_class,
+            "Цвет": fig_color,
+            "Уверенность": f"{confidence:.2f}%"
+        })
+
+    # Показываем результаты всех изображений
+    st.subheader("📋 Результаты сравнения изображений:")
+    for pred in predictions:
+        st.write(f"Файл: {pred['Файл']} — **{pred['Класс']}** (Цвет: {pred['Цвет']}), Уверенность: {pred['Уверенность']}")
 
     # 💾 Сохраняем лог
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    log_df = pd.DataFrame([{
-        "Время": now,
-        "Файл": uploaded_file.name,
-        "Класс": predicted_class,
-        "Цвет": fig_color,
-        "Уверенность": round(confidence, 2)
-    }])
-
+    log_df = pd.DataFrame(predictions)
+    
     if os.path.exists(log_file):
         try:
             current = pd.read_csv(log_file, encoding='utf-8')
