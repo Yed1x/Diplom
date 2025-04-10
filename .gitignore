@@ -1,0 +1,36 @@
+# Model files
+*.keras
+*.h5
+*.model
+*.pkl
+*.joblib
+*.ckpt
+*.bin
+*.pt
+*.pth
+*.weights
+*.pb
+
+# Large data files
+*.csv
+*.xlsx
+*.db
+*.sqlite
+/datasets/
+
+# Environment and cache
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.ipynb_checkpoints
+
+# IDE files
+.idea/
+.vscode/
