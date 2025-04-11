@@ -1,5 +1,6 @@
 import tkinter as tk
-from tkinter import filedialog, ttk
+import customtkinter as ctk
+from tkinter import filedialog
 from PIL import Image, ImageTk
 import numpy as np
 import os
@@ -11,19 +12,21 @@ from datetime import datetime
 class ChessClassifierApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Chess Piece Classifier")
-        self.root.geometry("800x600")
+        self.root.title("Chess Piece Classifier Pro")
+        self.root.geometry("1000x800")
         self.root.resizable(True, True)
+        
+        # Настройка темы
+        ctk.set_appearance_mode("dark")
+        ctk.set_default_color_theme("blue")
         
         # Загрузка модели
         try:
             self.model = load_model("chess_model_updated.keras")
-            self.status_label = tk.Label(root, text="Модель успешно загружена", fg="green")
+            self.model_loaded = True
         except Exception as e:
             self.model = None
-            self.status_label = tk.Label(root, text=f"Ошибка загрузки модели: {e}", fg="red")
-        
-        self.status_label.pack(pady=10)
+            self.model_loaded = False
         
         # Классы фигур
         self.class_labels = {
@@ -34,94 +37,188 @@ class ChessClassifierApp:
             'pawn_resized': 'Пешка 🧍‍♂️'
         }
         
-        # Лог-файл
         self.log_file = "predictions_log.csv"
-        
-        # Создание интерфейса
         self.create_widgets()
         
     def create_widgets(self):
-        # Фрейм для кнопок
-        button_frame = tk.Frame(self.root)
-        button_frame.pack(pady=10)
+        # Основной контейнер
+        self.main_container = ctk.CTkFrame(self.root)
+        self.main_container.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
         
-        # Кнопка загрузки изображения
-        self.upload_button = tk.Button(button_frame, text="Загрузить изображение", command=self.upload_image)
-        self.upload_button.pack(side=tk.LEFT, padx=10)
+        # Заголовок
+        self.title_label = ctk.CTkLabel(
+            self.main_container,
+            text="Классификатор шахматных фигур",
+            font=ctk.CTkFont(size=24, weight="bold")
+        )
+        self.title_label.pack(pady=10)
+        
+        # Статус модели
+        status_text = "✅ Модель загружена" if self.model_loaded else "❌ Ошибка загрузки модели"
+        status_color = "green" if self.model_loaded else "red"
+        self.status_label = ctk.CTkLabel(
+            self.main_container,
+            text=status_text,
+            text_color=status_color,
+            font=ctk.CTkFont(size=12)
+        )
+        self.status_label.pack(pady=5)
+        
+        # Контейнер для основного контента
+        self.content_frame = ctk.CTkFrame(self.main_container)
+        self.content_frame.pack(fill=tk.BOTH, expand=True, pady=10)
+        
+        # Левая панель (изображение и результаты)
+        self.left_panel = ctk.CTkFrame(self.content_frame)
+        self.left_panel.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=10)
+        
+        # Кнопка загрузки
+        self.upload_button = ctk.CTkButton(
+            self.left_panel,
+            text="Загрузить изображение",
+            command=self.upload_image,
+            font=ctk.CTkFont(size=14),
+            height=40
+        )
+        self.upload_button.pack(pady=10)
         
         # Фрейм для изображения
-        self.image_frame = tk.Frame(self.root)
-        self.image_frame.pack(pady=10)
+        self.image_frame = ctk.CTkFrame(self.left_panel)
+        self.image_frame.pack(pady=10, fill=tk.BOTH, expand=True)
         
-        # Заглушка для изображения
-        self.image_label = tk.Label(self.image_frame, text="Нет загруженного изображения")
-        self.image_label.pack()
+        self.image_label = ctk.CTkLabel(
+            self.image_frame,
+            text="Нет загруженного изображения",
+            font=ctk.CTkFont(size=14)
+        )
+        self.image_label.pack(expand=True)
         
         # Фрейм для результатов
-        self.results_frame = tk.Frame(self.root)
-        self.results_frame.pack(pady=10, fill=tk.BOTH, expand=True)
+        self.result_frame = ctk.CTkFrame(self.left_panel)
+        self.result_frame.pack(fill=tk.X, pady=10)
         
-        # Таблица для отображения истории
+        # Правая панель (история)
+        self.right_panel = ctk.CTkFrame(self.content_frame)
+        self.right_panel.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=10)
+        
+        # Заголовок истории
+        self.history_label = ctk.CTkLabel(
+            self.right_panel,
+            text="История классификаций",
+            font=ctk.CTkFont(size=16, weight="bold")
+        )
+        self.history_label.pack(pady=10)
+        
+        # Таблица истории
         self.create_history_table()
-    
-    def create_history_table(self):
-        columns = ("Файл", "Класс", "Цвет", "Уверенность")
-        self.history_tree = ttk.Treeview(self.results_frame, columns=columns, show="headings")
         
-        # Настройка заголовков
+    def create_history_table(self):
+        # Фрейм для таблицы с прокруткой
+        self.table_frame = ctk.CTkFrame(self.right_panel)
+        self.table_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Создание Treeview с темным стилем
+        style = ttk.Style()
+        style.configure(
+            "Treeview",
+            background="#2a2d2e",
+            foreground="white",
+            fieldbackground="#2a2d2e",
+            borderwidth=0
+        )
+        style.configure(
+            "Treeview.Heading",
+            background="#2a2d2e",
+            foreground="white",
+            borderwidth=1
+        )
+        
+        columns = ("Файл", "Класс", "Цвет", "Уверенность")
+        self.history_tree = ttk.Treeview(
+            self.table_frame,
+            columns=columns,
+            show="headings",
+            style="Treeview"
+        )
+        
+        # Настройка заголовков и столбцов
         for col in columns:
             self.history_tree.heading(col, text=col)
-            self.history_tree.column(col, width=100)
+            self.history_tree.column(col, width=120)
         
         # Добавление полосы прокрутки
-        scrollbar = ttk.Scrollbar(self.results_frame, orient=tk.VERTICAL, command=self.history_tree.yview)
-        self.history_tree.configure(yscroll=scrollbar.set)
+        scrollbar = ctk.CTkScrollbar(
+            self.table_frame,
+            command=self.history_tree.yview
+        )
+        self.history_tree.configure(yscrollcommand=scrollbar.set)
         
-        # Размещение элементов
         self.history_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
-        # Загрузка истории из файла, если он существует
+        # Загрузка истории
         self.load_history()
     
-    def load_history(self):
-        if os.path.exists(self.log_file):
-            try:
-                df_log = pd.read_csv(self.log_file, encoding='utf-8', errors='replace')
-                
-                # Очистка таблицы
-                for item in self.history_tree.get_children():
-                    self.history_tree.delete(item)
-                
-                # Заполнение таблицы
-                for _, row in df_log.iterrows():
-                    self.history_tree.insert("", tk.END, values=(
-                        row.get("Файл", ""),
-                        row.get("Класс", ""),
-                        row.get("Цвет", ""),
-                        row.get("Уверенность", "")
-                    ))
-            except Exception as e:
-                print(f"Ошибка загрузки истории: {e}")
-    
-    def upload_image(self):
-        file_path = filedialog.askopenfilename(
-            filetypes=[("Image files", "*.jpg *.jpeg *.png")]
-        )
+    def show_result(self, class_name, color, confidence):
+        # Очистка предыдущих результатов
+        for widget in self.result_frame.winfo_children():
+            widget.destroy()
         
-        if not file_path:
-            return
+        # Создание красивых карточек с результатами
+        class_card = ctk.CTkFrame(self.result_frame)
+        class_card.pack(fill=tk.X, pady=5, padx=10)
         
-        # Отображение изображения
-        self.display_image(file_path)
+        ctk.CTkLabel(
+            class_card,
+            text="Тип фигуры:",
+            font=ctk.CTkFont(size=12)
+        ).pack()
         
-        # Классификация изображения
-        if self.model:
-            self.classify_image(file_path)
+        ctk.CTkLabel(
+            class_card,
+            text=class_name,
+            font=ctk.CTkFont(size=16, weight="bold")
+        ).pack()
+        
+        color_card = ctk.CTkFrame(self.result_frame)
+        color_card.pack(fill=tk.X, pady=5, padx=10)
+        
+        ctk.CTkLabel(
+            color_card,
+            text="Цвет:",
+            font=ctk.CTkFont(size=12)
+        ).pack()
+        
+        ctk.CTkLabel(
+            color_card,
+            text=color,
+            font=ctk.CTkFont(size=16, weight="bold")
+        ).pack()
+        
+        conf_card = ctk.CTkFrame(self.result_frame)
+        conf_card.pack(fill=tk.X, pady=5, padx=10)
+        
+        ctk.CTkLabel(
+            conf_card,
+            text="Уверенность:",
+            font=ctk.CTkFont(size=12)
+        ).pack()
+        
+        # Прогресс-бар уверенности
+        confidence_value = float(confidence.strip('%'))
+        progress = ctk.CTkProgressBar(conf_card)
+        progress.pack(pady=5)
+        progress.set(confidence_value / 100)
+        
+        ctk.CTkLabel(
+            conf_card,
+            text=f"{confidence_value:.1f}%",
+            font=ctk.CTkFont(size=16, weight="bold")
+        ).pack()
     
     def display_image(self, file_path):
         try:
-            # Загрузка и изменение размера для отображения
+            # Загрузка и изменение размера изображения
             img = Image.open(file_path)
             img = self.resize_image(img, (300, 300))
             img_tk = ImageTk.PhotoImage(img)
@@ -130,18 +227,25 @@ class ChessClassifierApp:
             if hasattr(self, "image_label"):
                 self.image_label.destroy()
             
-            self.image_label = tk.Label(self.image_frame, image=img_tk)
-            self.image_label.image = img_tk  # Предотвращение удаления сборщиком мусора
-            self.image_label.pack()
+            self.image_label = ctk.CTkLabel(
+                self.image_frame,
+                image=img_tk,
+                text=""
+            )
+            self.image_label.image = img_tk
+            self.image_label.pack(expand=True)
             
         except Exception as e:
             if hasattr(self, "image_label"):
                 self.image_label.destroy()
-            self.image_label = tk.Label(self.image_frame, text=f"Ошибка отображения: {e}")
-            self.image_label.pack()
+            self.image_label = ctk.CTkLabel(
+                self.image_frame,
+                text=f"Ошибка отображения: {e}",
+                text_color="red"
+            )
+            self.image_label.pack(expand=True)
     
     def resize_image(self, img, size):
-        # Сохранение пропорций при изменении размера
         width, height = img.size
         ratio = min(size[0]/width, size[1]/height)
         new_width = int(width * ratio)
@@ -170,7 +274,7 @@ class ChessClassifierApp:
     def classify_image(self, file_path):
         try:
             # Определение цвета
-            fig_color, brightness = self.detect_color(file_path)
+            fig_color, _ = self.detect_color(file_path)
             
             # Предсказание класса
             img = image.load_img(file_path, target_size=(224, 224))
@@ -182,30 +286,56 @@ class ChessClassifierApp:
             confidence = float(np.max(prediction)) * 100
             predicted_class = self.class_labels[list(self.class_labels.keys())[idx]]
             
-            # Создание фрейма для результатов, если его еще нет
-            if hasattr(self, "result_label"):
-                self.result_label.destroy()
-            
-            # Отображение результата
-            result_text = f"Класс: {predicted_class}\nЦвет: {fig_color}\nУверенность: {confidence:.2f}%"
-            self.result_label = tk.Label(self.image_frame, text=result_text, font=("Arial", 12))
-            self.result_label.pack(pady=10)
+            # Отображение результатов
+            self.show_result(predicted_class, fig_color, f"{confidence:.1f}%")
             
             # Сохранение в историю
-            self.save_to_history(os.path.basename(file_path), predicted_class, fig_color, f"{confidence:.2f}%")
+            self.save_to_history(
+                os.path.basename(file_path),
+                predicted_class,
+                fig_color,
+                f"{confidence:.1f}%"
+            )
             
         except Exception as e:
-            if hasattr(self, "result_label"):
-                self.result_label.destroy()
-            self.result_label = tk.Label(self.image_frame, text=f"Ошибка классификации: {e}", fg="red")
-            self.result_label.pack(pady=10)
+            self.show_result("Ошибка", "Ошибка", "0%")
+            print(f"Ошибка классификации: {e}")
+    
+    def upload_image(self):
+        file_path = filedialog.askopenfilename(
+            filetypes=[("Image files", "*.jpg *.jpeg *.png")]
+        )
+        
+        if file_path:
+            self.display_image(file_path)
+            if self.model_loaded:
+                self.classify_image(file_path)
+    
+    def load_history(self):
+        if os.path.exists(self.log_file):
+            try:
+                df_log = pd.read_csv(self.log_file, encoding='utf-8', errors='replace')
+                
+                # Очистка таблицы
+                for item in self.history_tree.get_children():
+                    self.history_tree.delete(item)
+                
+                # Заполнение таблицы
+                for _, row in df_log.iterrows():
+                    self.history_tree.insert("", tk.END, values=(
+                        row.get("Файл", ""),
+                        row.get("Класс", ""),
+                        row.get("Цвет", ""),
+                        row.get("Уверенность", "")
+                    ))
+            except Exception as e:
+                print(f"Ошибка загрузки истории: {e}")
     
     def save_to_history(self, file_name, class_name, color, confidence):
         # Добавление в таблицу
         self.history_tree.insert("", 0, values=(file_name, class_name, color, confidence))
         
         # Сохранение в CSV
-        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         new_entry = pd.DataFrame([{
             "Файл": file_name,
             "Класс": class_name,
@@ -226,6 +356,6 @@ class ChessClassifierApp:
             new_entry.to_csv(self.log_file, index=False, encoding='utf-8-sig')
 
 if __name__ == "__main__":
-    root = tk.Tk()
+    root = ctk.CTk()
     app = ChessClassifierApp(root)
     root.mainloop() 
