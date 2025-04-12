@@ -1,6 +1,7 @@
 import tkinter as tk
+from tkinter import ttk
 import customtkinter as ctk
-from tkinter import filedialog
+from tkinter import filedialog, messagebox
 from PIL import Image, ImageTk
 import numpy as np
 import os
@@ -8,12 +9,15 @@ from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing import image
 import pandas as pd
 from datetime import datetime
+import json
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 class ChessClassifierApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Chess Piece Classifier Pro")
-        self.root.geometry("1000x800")
+        self.root.geometry("1200x800")
         self.root.resizable(True, True)
         
         # Настройка темы
@@ -38,12 +42,66 @@ class ChessClassifierApp:
         }
         
         self.log_file = "predictions_log.csv"
+        
+        # Инициализация статистики
+        self.stats = {
+            "total_classifications": 0,
+            "by_class": {},
+            "by_color": {"Белая ♙": 0, "Чёрная ♟️": 0}
+        }
+        
+        self.load_stats()
+        self.setup_menu()
         self.create_widgets()
         
+    def setup_menu(self):
+        menubar = tk.Menu(self.root)
+        self.root.config(menu=menubar)
+        
+        # Меню файла
+        file_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="Файл", menu=file_menu)
+        file_menu.add_command(label="Открыть изображение", command=self.upload_image)
+        file_menu.add_command(label="Экспорт истории", command=self.export_history)
+        file_menu.add_separator()
+        file_menu.add_command(label="Выход", command=self.root.quit)
+        
+        # Меню статистики
+        stats_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="Статистика", menu=stats_menu)
+        stats_menu.add_command(label="Показать статистику", command=self.show_statistics)
+        stats_menu.add_command(label="Сбросить статистику", command=self.reset_statistics)
+    
     def create_widgets(self):
         # Основной контейнер
         self.main_container = ctk.CTkFrame(self.root)
         self.main_container.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+        
+        # Панель инструментов
+        toolbar = ctk.CTkFrame(self.main_container)
+        toolbar.pack(fill=tk.X, pady=(0, 10))
+        
+        # Кнопка загрузки с иконкой
+        self.upload_button = ctk.CTkButton(
+            toolbar,
+            text="Загрузить изображение",
+            command=self.upload_image,
+            font=ctk.CTkFont(size=14),
+            height=40,
+            width=200
+        )
+        self.upload_button.pack(side=tk.LEFT, padx=5)
+        
+        # Кнопка статистики
+        self.stats_button = ctk.CTkButton(
+            toolbar,
+            text="Показать статистику",
+            command=self.show_statistics,
+            font=ctk.CTkFont(size=14),
+            height=40,
+            width=200
+        )
+        self.stats_button.pack(side=tk.LEFT, padx=5)
         
         # Заголовок
         self.title_label = ctk.CTkLabel(
@@ -71,16 +129,6 @@ class ChessClassifierApp:
         # Левая панель (изображение и результаты)
         self.left_panel = ctk.CTkFrame(self.content_frame)
         self.left_panel.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=10)
-        
-        # Кнопка загрузки
-        self.upload_button = ctk.CTkButton(
-            self.left_panel,
-            text="Загрузить изображение",
-            command=self.upload_image,
-            font=ctk.CTkFont(size=14),
-            height=40
-        )
-        self.upload_button.pack(pady=10)
         
         # Фрейм для изображения
         self.image_frame = ctk.CTkFrame(self.left_panel)
@@ -273,10 +321,8 @@ class ChessClassifierApp:
     
     def classify_image(self, file_path):
         try:
-            # Определение цвета
             fig_color, _ = self.detect_color(file_path)
             
-            # Предсказание класса
             img = image.load_img(file_path, target_size=(224, 224))
             x = image.img_to_array(img)
             x = np.expand_dims(x, axis=0) / 255.0
@@ -286,10 +332,7 @@ class ChessClassifierApp:
             confidence = float(np.max(prediction)) * 100
             predicted_class = self.class_labels[list(self.class_labels.keys())[idx]]
             
-            # Отображение результатов
             self.show_result(predicted_class, fig_color, f"{confidence:.1f}%")
-            
-            # Сохранение в историю
             self.save_to_history(
                 os.path.basename(file_path),
                 predicted_class,
@@ -297,24 +340,36 @@ class ChessClassifierApp:
                 f"{confidence:.1f}%"
             )
             
+            # Обновляем статистику
+            self.update_stats(predicted_class, fig_color)
+            
         except Exception as e:
             self.show_result("Ошибка", "Ошибка", "0%")
             print(f"Ошибка классификации: {e}")
     
     def upload_image(self):
         file_path = filedialog.askopenfilename(
-            filetypes=[("Image files", "*.jpg *.jpeg *.png")]
+            title="Выберите изображение",
+            filetypes=[
+                ("Изображения", "*.jpg *.jpeg *.png"),
+                ("Все файлы", "*.*")
+            ]
         )
         
         if file_path:
-            self.display_image(file_path)
-            if self.model_loaded:
-                self.classify_image(file_path)
+            try:
+                self.process_image(file_path)
+            except Exception as e:
+                messagebox.showerror(
+                    "Ошибка",
+                    f"Не удалось обработать изображение:\n{str(e)}"
+                )
     
     def load_history(self):
         if os.path.exists(self.log_file):
             try:
-                df_log = pd.read_csv(self.log_file, encoding='utf-8', errors='replace')
+                # Исправляем чтение CSV файла
+                df_log = pd.read_csv(self.log_file, encoding='utf-8')
                 
                 # Очистка таблицы
                 for item in self.history_tree.get_children():
@@ -354,6 +409,119 @@ class ChessClassifierApp:
                 new_entry.to_csv(self.log_file, index=False, encoding='utf-8-sig')
         else:
             new_entry.to_csv(self.log_file, index=False, encoding='utf-8-sig')
+    
+    def process_image(self, file_path):
+        self.display_image(file_path)
+        if self.model_loaded:
+            self.classify_image(file_path)
+    
+    def export_history(self):
+        if not os.path.exists(self.log_file):
+            messagebox.showwarning("Предупреждение", "Нет данных для экспорта")
+            return
+        
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=".xlsx",
+            filetypes=[
+                ("Excel файл", "*.xlsx"),
+                ("CSV файл", "*.csv"),
+                ("JSON файл", "*.json")
+            ]
+        )
+        
+        if not file_path:
+            return
+            
+        df = pd.read_csv(self.log_file, encoding='utf-8')
+        
+        if file_path.endswith('.xlsx'):
+            df.to_excel(file_path, index=False)
+        elif file_path.endswith('.csv'):
+            df.to_csv(file_path, index=False)
+        elif file_path.endswith('.json'):
+            df.to_json(file_path, orient='records', force_ascii=False)
+            
+        messagebox.showinfo("Успех", "Данные успешно экспортированы")
+    
+    def show_statistics(self):
+        stats_window = ctk.CTkToplevel(self.root)
+        stats_window.title("Статистика классификаций")
+        stats_window.geometry("800x600")
+        
+        # Создаем вкладки
+        notebook = ttk.Notebook(stats_window)
+        notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        # Вкладка общей статистики
+        general_frame = ctk.CTkFrame(notebook)
+        notebook.add(general_frame, text="Общая статистика")
+        
+        total_label = ctk.CTkLabel(
+            general_frame,
+            text=f"Всего классификаций: {self.stats['total_classifications']}",
+            font=ctk.CTkFont(size=16, weight="bold")
+        )
+        total_label.pack(pady=20)
+        
+        # График распределения по классам
+        fig1, ax1 = plt.subplots(figsize=(8, 4))
+        classes = list(self.stats['by_class'].keys())
+        values = list(self.stats['by_class'].values())
+        ax1.bar(classes, values)
+        ax1.set_title("Распределение по классам фигур")
+        ax1.tick_params(axis='x', rotation=45)
+        
+        canvas1 = FigureCanvasTkAgg(fig1, general_frame)
+        canvas1.draw()
+        canvas1.get_tk_widget().pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        # График распределения по цветам
+        fig2, ax2 = plt.subplots(figsize=(8, 4))
+        colors = list(self.stats['by_color'].keys())
+        color_values = list(self.stats['by_color'].values())
+        ax2.pie(color_values, labels=colors, autopct='%1.1f%%')
+        ax2.set_title("Распределение по цветам")
+        
+        canvas2 = FigureCanvasTkAgg(fig2, general_frame)
+        canvas2.draw()
+        canvas2.get_tk_widget().pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+    
+    def reset_statistics(self):
+        if messagebox.askyesno("Подтверждение", "Вы уверены, что хотите сбросить статистику?"):
+            self.stats = {
+                "total_classifications": 0,
+                "by_class": {},
+                "by_color": {"Белая ♙": 0, "Чёрная ♟️": 0}
+            }
+            self.save_stats()
+            messagebox.showinfo("Успех", "Статистика сброшена")
+    
+    def load_stats(self):
+        try:
+            if os.path.exists('stats.json'):
+                with open('stats.json', 'r', encoding='utf-8') as f:
+                    self.stats = json.load(f)
+        except Exception as e:
+            print(f"Ошибка загрузки статистики: {e}")
+    
+    def save_stats(self):
+        try:
+            with open('stats.json', 'w', encoding='utf-8') as f:
+                json.dump(self.stats, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"Ошибка сохранения статистики: {e}")
+    
+    def update_stats(self, class_name, color):
+        self.stats['total_classifications'] += 1
+        
+        if class_name not in self.stats['by_class']:
+            self.stats['by_class'][class_name] = 0
+        self.stats['by_class'][class_name] += 1
+        
+        if color in self.stats['by_color']:
+            self.stats['by_color'][color] += 1
+            
+        self.save_stats()
 
 if __name__ == "__main__":
     root = ctk.CTk()
