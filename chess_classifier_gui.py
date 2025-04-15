@@ -12,6 +12,11 @@ from datetime import datetime
 import json
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
+from reportlab.lib.styles import getSampleStyleSheet
+from idlelib.tooltip import Hovertip
 
 class ChessClassifierApp:
     def __init__(self, root):
@@ -53,6 +58,10 @@ class ChessClassifierApp:
         self.load_stats()
         self.setup_menu()
         self.create_widgets()
+        self.add_tooltips()
+        self.batch_process()
+        self.add_settings()
+        self.compare_images()
         
     def setup_menu(self):
         menubar = tk.Menu(self.root)
@@ -78,12 +87,12 @@ class ChessClassifierApp:
         self.main_container.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
         
         # Панель инструментов
-        toolbar = ctk.CTkFrame(self.main_container)
-        toolbar.pack(fill=tk.X, pady=(0, 10))
+        self.toolbar = ctk.CTkFrame(self.main_container)
+        self.toolbar.pack(fill=tk.X, pady=(0, 10))
         
         # Кнопка загрузки с иконкой
         self.upload_button = ctk.CTkButton(
-            toolbar,
+            self.toolbar,
             text="Загрузить изображение",
             command=self.upload_image,
             font=ctk.CTkFont(size=14),
@@ -94,7 +103,7 @@ class ChessClassifierApp:
         
         # Кнопка статистики
         self.stats_button = ctk.CTkButton(
-            toolbar,
+            self.toolbar,
             text="Показать статистику",
             command=self.show_statistics,
             font=ctk.CTkFont(size=14),
@@ -522,6 +531,153 @@ class ChessClassifierApp:
             self.stats['by_color'][color] += 1
             
         self.save_stats()
+
+    def add_tooltips(self):
+        Hovertip(self.upload_button, "Загрузить изображение для классификации")
+        Hovertip(self.stats_button, "Просмотр статистики классификаций")
+
+    def batch_process(self):
+        # Добавляем кнопку пакетной обработки в toolbar
+        self.batch_button = ctk.CTkButton(
+            self.toolbar,
+            text="Пакетная обработка",
+            command=self.open_batch_window,
+            font=ctk.CTkFont(size=14),
+            height=40,
+            width=200
+        )
+        self.batch_button.pack(side=tk.LEFT, padx=5)
+
+    def open_batch_window(self):
+        folder = filedialog.askdirectory(title="Выберите папку с изображениями")
+        if folder:
+            progress_window = ctk.CTkToplevel(self.root)
+            progress_window.title("Обработка изображений")
+            progress_window.geometry("400x200")
+            
+            progress_label = ctk.CTkLabel(
+                progress_window,
+                text="Обработка изображений...",
+                font=ctk.CTkFont(size=14)
+            )
+            progress_label.pack(pady=20)
+            
+            progress_bar = ctk.CTkProgressBar(progress_window)
+            progress_bar.pack(pady=10)
+            progress_bar.set(0)
+
+    def add_settings(self):
+        # Добавляем кнопку настроек в toolbar
+        self.settings_button = ctk.CTkButton(
+            self.toolbar,
+            text="Настройки",
+            command=self.open_settings,
+            font=ctk.CTkFont(size=14),
+            height=40,
+            width=200
+        )
+        self.settings_button.pack(side=tk.LEFT, padx=5)
+
+    def open_settings(self):
+        settings_window = ctk.CTkToplevel(self.root)
+        settings_window.title("Настройки")
+        settings_window.geometry("500x400")
+        
+        # Настройки темы
+        theme_frame = ctk.CTkFrame(settings_window)
+        theme_frame.pack(fill=tk.X, padx=10, pady=5)
+        
+        ctk.CTkLabel(theme_frame, text="Тема оформления:").pack(side=tk.LEFT, padx=5)
+        theme_var = tk.StringVar(value="dark")
+        theme_menu = ctk.CTkOptionMenu(
+            theme_frame,
+            values=["dark", "light"],
+            variable=theme_var,
+            command=lambda x: ctk.set_appearance_mode(x)
+        )
+        theme_menu.pack(side=tk.LEFT, padx=5)
+
+    def compare_images(self):
+        # Добавляем кнопку сравнения в toolbar
+        self.compare_button = ctk.CTkButton(
+            self.toolbar,
+            text="Сравнить изображения",
+            command=self.open_compare_window,
+            font=ctk.CTkFont(size=14),
+            height=40,
+            width=200
+        )
+        self.compare_button.pack(side=tk.LEFT, padx=5)
+
+    def open_compare_window(self):
+        compare_window = ctk.CTkToplevel(self.root)
+        compare_window.title("Сравнение изображений")
+        compare_window.geometry("1000x600")
+        
+        # Создаем фрейм для изображений
+        images_frame = ctk.CTkFrame(compare_window)
+        images_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        # Кнопка для загрузки изображений
+        upload_btn = ctk.CTkButton(
+            images_frame,
+            text="Добавить изображения",
+            command=lambda: self.add_image_to_compare(images_frame)
+        )
+        upload_btn.pack(pady=10)
+
+    def add_image_to_compare(self, frame):
+        file_path = filedialog.askopenfilename(
+            title="Выберите изображение",
+            filetypes=[
+                ("Изображения", "*.jpg *.jpeg *.png"),
+                ("Все файлы", "*.*")
+            ]
+        )
+        
+        if file_path:
+            try:
+                # Создаем фрейм для изображения и результатов
+                img_frame = ctk.CTkFrame(frame)
+                img_frame.pack(side=tk.LEFT, padx=10, fill=tk.BOTH, expand=True)
+                
+                # Загружаем и отображаем изображение
+                img = Image.open(file_path)
+                img = self.resize_image(img, (200, 200))
+                img_tk = ImageTk.PhotoImage(img)
+                
+                img_label = ctk.CTkLabel(
+                    img_frame,
+                    image=img_tk,
+                    text=""
+                )
+                img_label.image = img_tk
+                img_label.pack(pady=5)
+                
+                # Классифицируем изображение
+                if self.model_loaded:
+                    img_tensor = image.load_img(file_path, target_size=(224, 224))
+                    x = image.img_to_array(img_tensor)
+                    x = np.expand_dims(x, axis=0) / 255.0
+                    
+                    prediction = self.model.predict(x, verbose=0)[0]
+                    idx = np.argmax(prediction)
+                    confidence = float(np.max(prediction)) * 100
+                    predicted_class = self.class_labels[list(self.class_labels.keys())[idx]]
+                    
+                    # Отображаем результаты
+                    result_label = ctk.CTkLabel(
+                        img_frame,
+                        text=f"Класс: {predicted_class}\nУверенность: {confidence:.1f}%",
+                        font=ctk.CTkFont(size=12)
+                    )
+                    result_label.pack(pady=5)
+                    
+            except Exception as e:
+                messagebox.showerror(
+                    "Ошибка",
+                    f"Не удалось обработать изображение:\n{str(e)}"
+                )
 
 if __name__ == "__main__":
     root = ctk.CTk()
