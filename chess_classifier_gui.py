@@ -357,22 +357,134 @@ class ChessClassifierApp:
             print(f"Ошибка классификации: {e}")
     
     def upload_image(self):
-        file_path = filedialog.askopenfilename(
-            title="Выберите изображение",
+        file_paths = filedialog.askopenfilenames(
+            title="Выберите изображения",
             filetypes=[
                 ("Изображения", "*.jpg *.jpeg *.png"),
                 ("Все файлы", "*.*")
             ]
         )
         
-        if file_path:
+        if not file_paths:
+            messagebox.showinfo("Информация", "Изображения не выбраны")
+            return
+        
+        # Создаем новое окно для отображения всех выбранных изображений
+        images_window = ctk.CTkToplevel(self.root)
+        images_window.title("Результаты классификации")
+        images_window.geometry("800x600")
+        
+        # Создаем холст с полосой прокрутки
+        canvas = ctk.CTkCanvas(images_window)
+        scrollbar = ttk.Scrollbar(images_window, orient="vertical", command=canvas.yview)
+        scrollable_frame = ctk.CTkFrame(canvas)
+        
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        # Размещаем элементы
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        
+        # Обрабатываем каждое изображение
+        for file_path in file_paths:
+            # Создаем фрейм для каждого изображения и его результатов
+            img_frame = ctk.CTkFrame(scrollable_frame)
+            img_frame.pack(pady=10, padx=10, fill="x")
+            
             try:
-                self.process_image(file_path)
-            except Exception as e:
-                messagebox.showerror(
-                    "Ошибка",
-                    f"Не удалось обработать изображение:\n{str(e)}"
+                # Отображаем изображение
+                img = Image.open(file_path)
+                img = self.resize_image(img, (200, 200))
+                img_tk = ImageTk.PhotoImage(img)
+                
+                img_label = ctk.CTkLabel(
+                    img_frame,
+                    image=img_tk,
+                    text=""
                 )
+                img_label.image = img_tk
+                img_label.pack(side="left", padx=10)
+                
+                # Создаем фрейм для результатов
+                results_frame = ctk.CTkFrame(img_frame)
+                results_frame.pack(side="left", fill="both", expand=True, padx=10)
+                
+                # Имя файла
+                file_name = os.path.basename(file_path)
+                ctk.CTkLabel(
+                    results_frame,
+                    text=f"Файл: {file_name}",
+                    font=ctk.CTkFont(size=12)
+                ).pack(anchor="w")
+                
+                if self.model_loaded:
+                    # Определяем цвет фигуры
+                    fig_color, _ = self.detect_color(file_path)
+                    
+                    # Классифицируем изображение
+                    img_tensor = image.load_img(file_path, target_size=(224, 224))
+                    x = image.img_to_array(img_tensor)
+                    x = np.expand_dims(x, axis=0) / 255.0
+                    
+                    prediction = self.model.predict(x, verbose=0)[0]
+                    idx = np.argmax(prediction)
+                    confidence = float(np.max(prediction)) * 100
+                    predicted_class = self.class_labels[list(self.class_labels.keys())[idx]]
+                    
+                    # Отображаем результаты
+                    ctk.CTkLabel(
+                        results_frame,
+                        text=f"Тип фигуры: {predicted_class}",
+                        font=ctk.CTkFont(size=12)
+                    ).pack(anchor="w")
+                    
+                    ctk.CTkLabel(
+                        results_frame,
+                        text=f"Цвет: {fig_color}",
+                        font=ctk.CTkFont(size=12)
+                    ).pack(anchor="w")
+                    
+                    # Прогресс-бар уверенности
+                    conf_frame = ctk.CTkFrame(results_frame)
+                    conf_frame.pack(fill="x", pady=5)
+                    
+                    ctk.CTkLabel(
+                        conf_frame,
+                        text=f"Уверенность: {confidence:.1f}%",
+                        font=ctk.CTkFont(size=12)
+                    ).pack(side="left")
+                    
+                    progress = ctk.CTkProgressBar(conf_frame, width=100)
+                    progress.pack(side="left", padx=10)
+                    progress.set(confidence / 100)
+                    
+                    # Сохраняем в историю
+                    self.save_to_history(file_name, predicted_class, fig_color, f"{confidence:.1f}%")
+                    
+                    # Обновляем статистику
+                    self.update_stats(predicted_class, fig_color)
+                    
+                else:
+                    ctk.CTkLabel(
+                        results_frame,
+                        text="Модель не загружена",
+                        text_color="red",
+                        font=ctk.CTkFont(size=12)
+                    ).pack()
+                
+            except Exception as e:
+                ctk.CTkLabel(
+                    img_frame,
+                    text=f"Ошибка обработки {file_name}:\n{str(e)}",
+                    text_color="red",
+                    font=ctk.CTkFont(size=12)
+                ).pack()
     
     def load_history(self):
         if os.path.exists(self.log_file):
