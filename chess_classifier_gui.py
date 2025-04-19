@@ -25,9 +25,31 @@ class ChessClassifierApp:
         self.root.geometry("1200x800")
         self.root.resizable(True, True)
         
+        # Настройка цветовой схемы
+        self.color_scheme = {
+            "primary": "#1f538d",       # Основной синий
+            "secondary": "#2c974b",     # Зеленый
+            "accent": "#a371f7",        # Фиолетовый акцент
+            "warning": "#d29922",       # Оранжевый для предупреждений
+            "error": "#cf222e",         # Красный для ошибок
+            "success": "#238636",       # Зеленый для успеха
+            "background": "#0d1117",    # Темный фон
+            "surface": "#161b22",       # Поверхность компонентов
+            "text": "#c9d1d9"          # Цвет текста
+        }
+        
         # Настройка темы
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("blue")
+        
+        # Настройка стилей
+        self.styles = {
+            "heading": ctk.CTkFont(size=24, weight="bold"),
+            "subheading": ctk.CTkFont(size=18, weight="bold"),
+            "button": ctk.CTkFont(size=14),
+            "text": ctk.CTkFont(size=12),
+            "small": ctk.CTkFont(size=10)
+        }
         
         # Загрузка модели
         try:
@@ -82,52 +104,63 @@ class ChessClassifierApp:
         stats_menu.add_command(label="Сбросить статистику", command=self.reset_statistics)
     
     def create_widgets(self):
-        # Основной контейнер
-        self.main_container = ctk.CTkFrame(self.root)
+        # Основной контейнер с градиентным фоном
+        self.main_container = ctk.CTkFrame(
+            self.root,
+            fg_color=self.color_scheme["background"]
+        )
         self.main_container.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
         
-        # Панель инструментов
-        self.toolbar = ctk.CTkFrame(self.main_container)
+        # Панель инструментов с эффектом стекла
+        self.toolbar = ctk.CTkFrame(
+            self.main_container,
+            fg_color=self.color_scheme["surface"],
+            corner_radius=15
+        )
         self.toolbar.pack(fill=tk.X, pady=(0, 10))
         
-        # Кнопка загрузки с иконкой
+        # Кнопки с анимированным эффектом при наведении
         self.upload_button = ctk.CTkButton(
             self.toolbar,
-            text="Загрузить изображение",
+            text="📁 Загрузить изображение",
             command=self.upload_image,
-            font=ctk.CTkFont(size=14),
+            font=self.styles["button"],
             height=40,
-            width=200
+            width=200,
+            fg_color=self.color_scheme["primary"],
+            hover_color=self.color_scheme["accent"]
         )
         self.upload_button.pack(side=tk.LEFT, padx=5)
         
-        # Кнопка статистики
         self.stats_button = ctk.CTkButton(
             self.toolbar,
-            text="Показать статистику",
+            text="📊 Статистика",
             command=self.show_statistics,
-            font=ctk.CTkFont(size=14),
+            font=self.styles["button"],
             height=40,
-            width=200
+            width=200,
+            fg_color=self.color_scheme["secondary"],
+            hover_color=self.color_scheme["accent"]
         )
         self.stats_button.pack(side=tk.LEFT, padx=5)
         
-        # Заголовок
+        # Заголовок с эффектом тени
         self.title_label = ctk.CTkLabel(
             self.main_container,
-            text="Классификатор шахматных фигур",
-            font=ctk.CTkFont(size=24, weight="bold")
+            text="🎯 Классификатор шахматных фигур",
+            font=self.styles["heading"],
+            text_color=self.color_scheme["text"]
         )
         self.title_label.pack(pady=10)
         
-        # Статус модели
+        # Статус модели с анимированной иконкой
         status_text = "✅ Модель загружена" if self.model_loaded else "❌ Ошибка загрузки модели"
-        status_color = "green" if self.model_loaded else "red"
+        status_color = self.color_scheme["success"] if self.model_loaded else self.color_scheme["error"]
         self.status_label = ctk.CTkLabel(
             self.main_container,
             text=status_text,
             text_color=status_color,
-            font=ctk.CTkFont(size=12)
+            font=self.styles["text"]
         )
         self.status_label.pack(pady=5)
         
@@ -221,56 +254,81 @@ class ChessClassifierApp:
         for widget in self.result_frame.winfo_children():
             widget.destroy()
         
-        # Создание красивых карточек с результатами
-        class_card = ctk.CTkFrame(self.result_frame)
+        # Создание красивых карточек с результатами и тенями
+        class_card = ctk.CTkFrame(
+            self.result_frame,
+            fg_color=self.color_scheme["surface"],
+            corner_radius=10
+        )
         class_card.pack(fill=tk.X, pady=5, padx=10)
         
         ctk.CTkLabel(
             class_card,
-            text="Тип фигуры:",
-            font=ctk.CTkFont(size=12)
+            text="🎯 Тип фигуры:",
+            font=self.styles["text"],
+            text_color=self.color_scheme["text"]
         ).pack()
         
         ctk.CTkLabel(
             class_card,
             text=class_name,
-            font=ctk.CTkFont(size=16, weight="bold")
+            font=self.styles["subheading"],
+            text_color=self.color_scheme["accent"]
         ).pack()
         
-        color_card = ctk.CTkFrame(self.result_frame)
+        # Карточка для цвета
+        color_card = ctk.CTkFrame(
+            self.result_frame,
+            fg_color=self.color_scheme["surface"],
+            corner_radius=10
+        )
         color_card.pack(fill=tk.X, pady=5, padx=10)
         
         ctk.CTkLabel(
             color_card,
-            text="Цвет:",
-            font=ctk.CTkFont(size=12)
+            text="🎨 Цвет:",
+            font=self.styles["text"],
+            text_color=self.color_scheme["text"]
         ).pack()
         
         ctk.CTkLabel(
             color_card,
             text=color,
-            font=ctk.CTkFont(size=16, weight="bold")
+            font=self.styles["subheading"],
+            text_color=self.color_scheme["accent"]
         ).pack()
         
-        conf_card = ctk.CTkFrame(self.result_frame)
+        # Карточка для уверенности
+        conf_card = ctk.CTkFrame(
+            self.result_frame,
+            fg_color=self.color_scheme["surface"],
+            corner_radius=10
+        )
         conf_card.pack(fill=tk.X, pady=5, padx=10)
         
         ctk.CTkLabel(
             conf_card,
-            text="Уверенность:",
-            font=ctk.CTkFont(size=12)
+            text="📊 Уверенность:",
+            font=self.styles["text"],
+            text_color=self.color_scheme["text"]
         ).pack()
         
-        # Прогресс-бар уверенности
+        # Прогресс-бар с анимацией
         confidence_value = float(confidence.strip('%'))
-        progress = ctk.CTkProgressBar(conf_card)
+        progress = ctk.CTkProgressBar(
+            conf_card,
+            progress_color=self.color_scheme["success"] if confidence_value > 70 
+            else self.color_scheme["warning"] if confidence_value > 40 
+            else self.color_scheme["error"]
+        )
         progress.pack(pady=5)
         progress.set(confidence_value / 100)
         
         ctk.CTkLabel(
             conf_card,
             text=f"{confidence_value:.1f}%",
-            font=ctk.CTkFont(size=16, weight="bold")
+            font=self.styles["subheading"],
+            text_color=self.color_scheme["accent"]
         ).pack()
     
     def display_image(self, file_path):
@@ -679,33 +737,55 @@ class ChessClassifierApp:
             progress_bar.set(0)
 
     def add_settings(self):
-        # Добавляем кнопку настроек в toolbar
+        # Добавляем кнопку настроек в toolbar с новым дизайном
         self.settings_button = ctk.CTkButton(
             self.toolbar,
-            text="Настройки",
+            text="⚙️ Настройки",
             command=self.open_settings,
-            font=ctk.CTkFont(size=14),
+            font=self.styles["button"],
             height=40,
-            width=200
+            width=200,
+            fg_color=self.color_scheme["primary"],
+            hover_color=self.color_scheme["accent"]
         )
         self.settings_button.pack(side=tk.LEFT, padx=5)
 
     def open_settings(self):
         settings_window = ctk.CTkToplevel(self.root)
-        settings_window.title("Настройки")
+        settings_window.title("⚙️ Настройки")
         settings_window.geometry("500x400")
         
+        # Контейнер настроек с градиентным фоном
+        settings_container = ctk.CTkFrame(
+            settings_window,
+            fg_color=self.color_scheme["background"]
+        )
+        settings_container.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+        
         # Настройки темы
-        theme_frame = ctk.CTkFrame(settings_window)
+        theme_frame = ctk.CTkFrame(
+            settings_container,
+            fg_color=self.color_scheme["surface"],
+            corner_radius=10
+        )
         theme_frame.pack(fill=tk.X, padx=10, pady=5)
         
-        ctk.CTkLabel(theme_frame, text="Тема оформления:").pack(side=tk.LEFT, padx=5)
+        ctk.CTkLabel(
+            theme_frame,
+            text="🎨 Тема оформления:",
+            font=self.styles["text"],
+            text_color=self.color_scheme["text"]
+        ).pack(side=tk.LEFT, padx=5)
+        
         theme_var = tk.StringVar(value="dark")
         theme_menu = ctk.CTkOptionMenu(
             theme_frame,
-            values=["dark", "light"],
+            values=["dark", "light", "system"],
             variable=theme_var,
-            command=lambda x: ctk.set_appearance_mode(x)
+            command=lambda x: ctk.set_appearance_mode(x),
+            fg_color=self.color_scheme["primary"],
+            button_color=self.color_scheme["accent"],
+            button_hover_color=self.color_scheme["secondary"]
         )
         theme_menu.pack(side=tk.LEFT, padx=5)
 

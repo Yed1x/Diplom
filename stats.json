@@ -1,11 +1,12 @@
 {
-  "total_classifications": 5,
+  "total_classifications": 9,
   "by_class": {
     "Конь 🐴": 1,
-    "Ладья 🏰": 4
+    "Ладья 🏰": 6,
+    "Ферзь 👑": 2
   },
   "by_color": {
     "Белая ♙": 1,
-    "Чёрная ♟️": 4
+    "Чёрная ♟️": 8
   }
 }
