@@ -86,22 +86,153 @@ class ChessClassifierApp:
         self.compare_images()
         
     def setup_menu(self):
-        menubar = tk.Menu(self.root)
+        menubar = tk.Menu(self.root, bg=self.color_scheme["surface"], fg=self.color_scheme["text"])
         self.root.config(menu=menubar)
         
         # Меню файла
-        file_menu = tk.Menu(menubar, tearoff=0)
-        menubar.add_cascade(label="Файл", menu=file_menu)
-        file_menu.add_command(label="Открыть изображение", command=self.upload_image)
-        file_menu.add_command(label="Экспорт истории", command=self.export_history)
+        file_menu = tk.Menu(
+            menubar, 
+            tearoff=0,
+            bg=self.color_scheme["surface"],
+            fg=self.color_scheme["text"],
+            activebackground=self.color_scheme["accent"],
+            activeforeground=self.color_scheme["text"],
+            font=self.styles["text"]
+        )
+        menubar.add_cascade(
+            label="📁 Файл",
+            menu=file_menu,
+            font=self.styles["button"]
+        )
+        
+        file_menu.add_command(
+            label="🖼️ Открыть изображение",
+            command=self.upload_image,
+            font=self.styles["text"]
+        )
+        file_menu.add_command(
+            label="📤 Экспорт истории",
+            command=self.export_history,
+            font=self.styles["text"]
+        )
         file_menu.add_separator()
-        file_menu.add_command(label="Выход", command=self.root.quit)
+        file_menu.add_command(
+            label="❌ Выход",
+            command=self.root.quit,
+            font=self.styles["text"]
+        )
         
         # Меню статистики
-        stats_menu = tk.Menu(menubar, tearoff=0)
-        menubar.add_cascade(label="Статистика", menu=stats_menu)
-        stats_menu.add_command(label="Показать статистику", command=self.show_statistics)
-        stats_menu.add_command(label="Сбросить статистику", command=self.reset_statistics)
+        stats_menu = tk.Menu(
+            menubar,
+            tearoff=0,
+            bg=self.color_scheme["surface"],
+            fg=self.color_scheme["text"],
+            activebackground=self.color_scheme["accent"],
+            activeforeground=self.color_scheme["text"],
+            font=self.styles["text"]
+        )
+        menubar.add_cascade(
+            label="📊 Статистика",
+            menu=stats_menu,
+            font=self.styles["button"]
+        )
+        stats_menu.add_command(
+            label="📈 Показать статистику",
+            command=self.show_statistics,
+            font=self.styles["text"]
+        )
+        stats_menu.add_command(
+            label="🗑️ Сбросить статистику",
+            command=self.reset_statistics,
+            font=self.styles["text"]
+        )
+        
+        # Меню инструментов
+        tools_menu = tk.Menu(
+            menubar,
+            tearoff=0,
+            bg=self.color_scheme["surface"],
+            fg=self.color_scheme["text"],
+            activebackground=self.color_scheme["accent"],
+            activeforeground=self.color_scheme["text"],
+            font=self.styles["text"]
+        )
+        menubar.add_cascade(
+            label="🛠️ Инструменты",
+            menu=tools_menu,
+            font=self.styles["button"]
+        )
+        tools_menu.add_command(
+            label="📦 Пакетная обработка",
+            command=self.open_batch_window,
+            font=self.styles["text"]
+        )
+        tools_menu.add_command(
+            label="🔄 Сравнить изображения",
+            command=self.open_compare_window,
+            font=self.styles["text"]
+        )
+        
+        # Меню настроек
+        settings_menu = tk.Menu(
+            menubar,
+            tearoff=0,
+            bg=self.color_scheme["surface"],
+            fg=self.color_scheme["text"],
+            activebackground=self.color_scheme["accent"],
+            activeforeground=self.color_scheme["text"],
+            font=self.styles["text"]
+        )
+        menubar.add_cascade(
+            label="⚙️ Настройки",
+            menu=settings_menu,
+            font=self.styles["button"]
+        )
+        settings_menu.add_command(
+            label="🎨 Тема оформления",
+            command=self.open_settings,
+            font=self.styles["text"]
+        )
+        
+        # Меню справки
+        help_menu = tk.Menu(
+            menubar,
+            tearoff=0,
+            bg=self.color_scheme["surface"],
+            fg=self.color_scheme["text"],
+            activebackground=self.color_scheme["accent"],
+            activeforeground=self.color_scheme["text"],
+            font=self.styles["text"]
+        )
+        menubar.add_cascade(
+            label="❓ Справка",
+            menu=help_menu,
+            font=self.styles["button"]
+        )
+        help_menu.add_command(
+            label="📖 Руководство",
+            command=lambda: messagebox.showinfo(
+                "Руководство",
+                "Добро пожаловать в Chess Piece Classifier Pro!\n\n"
+                "1. Загрузите изображение шахматной фигуры\n"
+                "2. Получите результат классификации\n"
+                "3. Просматривайте историю и статистику\n"
+                "4. Используйте дополнительные инструменты"
+            ),
+            font=self.styles["text"]
+        )
+        help_menu.add_command(
+            label="ℹ️ О программе",
+            command=lambda: messagebox.showinfo(
+                "О программе",
+                "Chess Piece Classifier Pro\n"
+                "Версия 1.0\n\n"
+                "Программа для классификации шахматных фигур\n"
+                "с использованием искусственного интеллекта"
+            ),
+            font=self.styles["text"]
+        )
     
     def create_widgets(self):
         # Основной контейнер с градиентным фоном
