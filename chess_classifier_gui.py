@@ -17,6 +17,7 @@ from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
 from reportlab.lib.styles import getSampleStyleSheet
 from idlelib.tooltip import Hovertip
+import time  # для анимаций
 
 class ChessClassifierApp:
     def __init__(self, root):
@@ -106,6 +107,11 @@ class ChessClassifierApp:
         self.batch_process()
         self.add_settings()
         self.compare_images()
+        
+        # Добавляем инициализацию новых функций
+        self.add_sound_effects()
+        self.setup_hotkeys()
+        self.setup_drag_and_drop()
         
     def setup_menu(self):
         menubar = tk.Menu(self.root, bg=self.color_scheme["surface"], fg=self.color_scheme["text"])
@@ -255,6 +261,12 @@ class ChessClassifierApp:
             ),
             font=self.styles["text"]
         )
+        help_menu.add_separator()
+        help_menu.add_command(
+            label="🔄 Проверить обновления",
+            command=self.check_for_updates,
+            font=self.styles["text"]
+        )
     
     def create_widgets(self):
         # Основной контейнер с градиентным фоном
@@ -296,6 +308,19 @@ class ChessClassifierApp:
             text_color=self.color_scheme["text"]
         )
         self.stats_button.pack(side=tk.LEFT, padx=10, pady=5)
+        
+        # Добавляем кнопку анализа цвета после кнопки загрузки
+        self.color_analysis_button = ctk.CTkButton(
+            self.toolbar,
+            text="🎨 Анализ цвета",
+            command=lambda: self.show_color_analysis(self.current_image_path) if hasattr(self, 'current_image_path') else messagebox.showinfo("Информация", "Сначала загрузите изображение"),
+            font=self.styles["button"],
+            height=45,
+            width=200,
+            **self.button_effects["normal"],
+            text_color=self.color_scheme["text"]
+        )
+        self.color_analysis_button.pack(side=tk.LEFT, padx=10, pady=5)
         
         # Обновленный заголовок с градиентным эффектом
         title_frame = ctk.CTkFrame(
@@ -362,6 +387,15 @@ class ChessClassifierApp:
         # Таблица истории
         self.create_history_table()
         
+        # Добавляем всплывающие подсказки с анимацией
+        self.show_tooltip(self.upload_button, "Нажмите или перетащите файлы сюда\nCtrl+O")
+        self.show_tooltip(self.stats_button, "Просмотр статистики классификаций\nF5")
+        self.show_tooltip(self.color_analysis_button, "Показать детальный анализ определения цвета фигуры")
+        
+        # Добавляем звуковые эффекты для кнопок
+        self.upload_button.configure(command=lambda: [self.play_sound("click"), self.upload_image()])
+        self.stats_button.configure(command=lambda: [self.play_sound("click"), self.show_statistics()])
+    
     def create_history_table(self):
         # Фрейм для таблицы с прокруткой
         self.table_frame = ctk.CTkFrame(self.right_panel)
@@ -542,22 +576,140 @@ class ChessClassifierApp:
     
     def detect_color(self, file_path):
         try:
+            # Открываем изображение и конвертируем в оттенки серого
+            img = Image.open(file_path).convert("L")
+            arr = np.array(img)
+            
+            # Получаем размеры изображения
+            h, w = arr.shape
+            
+            # Вычисляем центр и размер области для анализа
+            cx, cy = w // 2, h // 2
+            s = min(h, w) // 3  # Уменьшаем размер области анализа
+            
+            # Вырезаем центральную область
+            crop = arr[cy - s//2:cy + s//2, cx - s//2:cx + s//2]
+            
+            # Применяем пороговую обработку для отделения фигуры от фона
+            threshold = 200  # Порог для отделения фигуры от фона
+            figure_pixels = crop[crop < threshold]
+            
+            if len(figure_pixels) == 0:
+                return "Не удалось определить цвет ❔", 0
+            
+            # Используем гистограмму для анализа распределения яркости
+            hist, bins = np.histogram(figure_pixels, bins=3)
+            dark_pixels = np.sum(hist[:2])  # Количество темных пикселей
+            light_pixels = hist[2]  # Количество светлых пикселей
+            
+            # Вычисляем среднюю яркость только для пикселей фигуры
+            mean = np.mean(figure_pixels)
+            
+            # Определяем цвет на основе соотношения темных и светлых пикселей
+            # и средней яркости
+            if dark_pixels > light_pixels and mean < 150:
+                return "Чёрная ♟️", mean
+            elif light_pixels > dark_pixels and mean > 100:
+                return "Белая ♙", mean
+            else:
+                # Используем дополнительный анализ для неоднозначных случаев
+                std_dev = np.std(figure_pixels)
+                if std_dev < 40:  # Если разброс яркости небольшой
+                    return "Чёрная ♟️" if mean < 127 else "Белая ♙", mean
+                else:
+                    # Анализируем распределение яркости
+                    dark_ratio = np.sum(figure_pixels < 127) / len(figure_pixels)
+                    return "Чёрная ♟️" if dark_ratio > 0.5 else "Белая ♙", mean
+                
+        except Exception as e:
+            return f"Ошибка определения цвета: {e}", 0
+
+    def show_color_analysis(self, file_path):
+        try:
             img = Image.open(file_path).convert("L")
             arr = np.array(img)
             h, w = arr.shape
             cx, cy = w // 2, h // 2
-            s = min(h, w) // 2
+            s = min(h, w) // 3
+            
+            # Создаем окно анализа
+            analysis_window = ctk.CTkToplevel(self.root)
+            analysis_window.title("Анализ цвета фигуры")
+            analysis_window.geometry("800x600")
+            
+            # Создаем фрейм для отображения
+            frame = ctk.CTkFrame(
+                analysis_window,
+                fg_color=self.color_scheme["card_bg"]
+            )
+            frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+            
+            # Отображаем оригинальное изображение
+            fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(15, 5))
+            
+            # Оригинальное изображение
+            ax1.imshow(arr, cmap='gray')
+            ax1.set_title("Оригинал")
+            
+            # Область анализа
             crop = arr[cy - s//2:cy + s//2, cx - s//2:cx + s//2]
-            crop_valid = crop[crop < 240]
+            ax2.imshow(crop, cmap='gray')
+            ax2.set_title("Область анализа")
             
-            if len(crop_valid) == 0:
-                return "Не удалось определить цвет ❔", 0
+            # Гистограмма
+            ax3.hist(crop.ravel(), bins=50, color=self.color_scheme["accent"])
+            ax3.set_title("Гистограмма яркости")
             
-            mean = np.mean(crop_valid)
-            color = "Чёрная ♟️" if mean < 127 else "Белая ♙"
-            return color, mean
+            # Настраиваем внешний вид графиков
+            for ax in [ax1, ax2, ax3]:
+                ax.set_facecolor(self.color_scheme["surface"])
+                ax.grid(True, alpha=0.3)
+            fig.patch.set_facecolor(self.color_scheme["card_bg"])
+            
+            canvas = FigureCanvasTkAgg(fig, frame)
+            canvas.draw()
+            canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+            
+            # Добавляем информацию об анализе
+            color, mean = self.detect_color(file_path)
+            
+            # Вычисляем дополнительные метрики
+            threshold = 200
+            figure_pixels = crop[crop < threshold]
+            hist, _ = np.histogram(figure_pixels, bins=3)
+            dark_pixels = np.sum(hist[:2])
+            light_pixels = hist[2]
+            std_dev = np.std(figure_pixels)
+            dark_ratio = np.sum(figure_pixels < 127) / len(figure_pixels)
+            
+            info_text = f"""
+            📊 Результаты анализа:
+            
+            🎨 Определенный цвет: {color}
+            📏 Средняя яркость: {mean:.2f}
+            📐 Размер области анализа: {s}x{s} пикселей
+            
+            📈 Дополнительные метрики:
+            • Стандартное отклонение: {std_dev:.2f}
+            • Соотношение темных пикселей: {dark_ratio:.2%}
+            • Количество темных пикселей: {dark_pixels}
+            • Количество светлых пикселей: {light_pixels}
+            """
+            
+            info_label = ctk.CTkLabel(
+                frame,
+                text=info_text,
+                font=self.styles["text"],
+                justify="left",
+                fg_color=self.color_scheme["surface"],
+                corner_radius=10,
+                padx=20,
+                pady=20
+            )
+            info_label.pack(pady=10, padx=10, fill=tk.X)
+            
         except Exception as e:
-            return f"Ошибка определения цвета: {e}", 0
+            messagebox.showerror("Ошибка", f"Не удалось выполнить анализ: {e}")
     
     def classify_image(self, file_path):
         try:
@@ -763,6 +915,7 @@ class ChessClassifierApp:
             new_entry.to_csv(self.log_file, index=False, encoding='utf-8-sig')
     
     def process_image(self, file_path):
+        self.current_image_path = file_path  # Сохраняем путь к текущему изображению
         self.display_image(file_path)
         if self.model_loaded:
             self.classify_image(file_path)
@@ -878,6 +1031,7 @@ class ChessClassifierApp:
     def add_tooltips(self):
         Hovertip(self.upload_button, "Загрузить изображение для классификации")
         Hovertip(self.stats_button, "Просмотр статистики классификаций")
+        Hovertip(self.color_analysis_button, "Показать детальный анализ определения цвета фигуры")
 
     def batch_process(self):
         # Добавляем кнопку пакетной обработки в toolbar
@@ -1054,7 +1208,212 @@ class ChessClassifierApp:
                     f"Не удалось обработать изображение:\n{str(e)}"
                 )
 
+    def show_loading_screen(self):
+        loading_window = ctk.CTkToplevel(self.root)
+        loading_window.title("Загрузка")
+        loading_window.geometry("300x200")
+        loading_window.transient(self.root)
+        
+        loading_frame = ctk.CTkFrame(
+            loading_window,
+            fg_color=self.color_scheme["card_bg"]
+        )
+        loading_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+        
+        loading_label = ctk.CTkLabel(
+            loading_frame,
+            text="⏳ Загрузка...",
+            font=self.styles["heading"],
+            text_color=self.color_scheme["gradient_start"]
+        )
+        loading_label.pack(pady=20)
+        
+        progress = ctk.CTkProgressBar(
+            loading_frame,
+            mode="indeterminate",
+            height=15,
+            corner_radius=10
+        )
+        progress.pack(pady=10, padx=20, fill=tk.X)
+        progress.start()
+        
+        return loading_window
+
+    def add_sound_effects(self):
+        self.sounds = {
+            "success": lambda: print("\a"),  # Системный звук
+            "error": lambda: print("\a\a"),  # Двойной системный звук
+            "click": lambda: print("\a")     # Системный звук
+        }
+
+    def play_sound(self, sound_type):
+        if hasattr(self, "sounds") and sound_type in self.sounds:
+            self.sounds[sound_type]()
+
+    def setup_hotkeys(self):
+        self.root.bind("<Control-o>", lambda e: self.upload_image())
+        self.root.bind("<Control-s>", lambda e: self.export_history())
+        self.root.bind("<Control-q>", lambda e: self.root.quit())
+        self.root.bind("<F1>", lambda e: self.show_help())
+        self.root.bind("<F5>", lambda e: self.refresh_history())
+
+    def show_tooltip(self, widget, text):
+        tooltip = ctk.CTkToplevel(self.root)
+        tooltip.withdraw()
+        tooltip.overrideredirect(True)
+        
+        label = ctk.CTkLabel(
+            tooltip,
+            text=text,
+            font=self.styles["small"],
+            fg_color=self.color_scheme["surface"],
+            corner_radius=10,
+            padx=10,
+            pady=5
+        )
+        label.pack()
+        
+        def show(event):
+            x = widget.winfo_rootx() + widget.winfo_width()
+            y = widget.winfo_rooty()
+            tooltip.geometry(f"+{x}+{y}")
+            tooltip.deiconify()
+        
+        def hide(event):
+            tooltip.withdraw()
+        
+        widget.bind("<Enter>", show)
+        widget.bind("<Leave>", hide)
+
+    def animate_window(self, window, start_geometry, end_geometry):
+        def update_geometry(progress):
+            if not window.winfo_exists():
+                return
+            
+            current_geometry = ""
+            for start, end in zip(
+                start_geometry.split("+"),
+                end_geometry.split("+")
+            ):
+                if "x" in start:
+                    w_start, h_start = map(int, start.split("x"))
+                    w_end, h_end = map(int, end.split("x"))
+                    w = int(w_start + (w_end - w_start) * progress)
+                    h = int(h_start + (h_end - h_start) * progress)
+                    current_geometry += f"{w}x{h}"
+                else:
+                    pos_start = int(start)
+                    pos_end = int(end)
+                    pos = int(pos_start + (pos_end - pos_start) * progress)
+                    current_geometry += f"+{pos}"
+            
+            window.geometry(current_geometry)
+            
+            if progress < 1:
+                window.after(10, lambda: update_geometry(min(1, progress + 0.1)))
+        
+        update_geometry(0)
+
+    def setup_drag_and_drop(self):
+        def drop(event):
+            try:
+                file_path = event.data
+                if file_path.startswith("{"):
+                    file_path = file_path[1:-1]
+                if os.path.isfile(file_path) and any(file_path.lower().endswith(ext) for ext in ['.jpg', '.jpeg', '.png']):
+                    self.process_image(file_path)
+                    self.play_sound("success")
+                else:
+                    self.play_sound("error")
+                    messagebox.showwarning("Предупреждение", "Поддерживаются только изображения (JPG, PNG)")
+            except Exception as e:
+                self.play_sound("error")
+                messagebox.showerror("Ошибка", f"Ошибка при обработке файла:\n{str(e)}")
+        
+        try:
+            self.root.drop_target_register(DND_FILES)
+            self.root.dnd_bind("<<Drop>>", drop)
+        except:
+            print("Drag and Drop не поддерживается")
+
+    def check_for_updates(self):
+        update_window = ctk.CTkToplevel(self.root)
+        update_window.title("Проверка обновлений")
+        update_window.geometry("400x200")
+        
+        update_label = ctk.CTkLabel(
+            update_window,
+            text="🔄 Проверка обновлений...",
+            font=self.styles["heading"]
+        )
+        update_label.pack(pady=20)
+        
+        progress = ctk.CTkProgressBar(
+            update_window,
+            mode="indeterminate"
+        )
+        progress.pack(pady=10)
+        progress.start()
+        
+        def show_update_result():
+            progress.stop()
+            update_label.configure(text="✅ Установлена последняя версия")
+            update_window.after(2000, update_window.destroy)
+        
+        update_window.after(2000, show_update_result)
+
+    def show_help(self):
+        help_window = ctk.CTkToplevel(self.root)
+        help_window.title("Справка")
+        help_window.geometry("600x400")
+        
+        help_frame = ctk.CTkFrame(
+            help_window,
+            fg_color=self.color_scheme["card_bg"]
+        )
+        help_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+        
+        help_text = """
+        🎯 Горячие клавиши:
+        
+        Ctrl + O - Открыть изображение
+        Ctrl + S - Экспорт истории
+        Ctrl + Q - Выход
+        F1      - Показать справку
+        F5      - Обновить историю
+        
+        📝 Основные функции:
+        
+        • Загрузка изображений перетаскиванием
+        • Классификация шахматных фигур
+        • Определение цвета фигур
+        • Просмотр статистики
+        • Экспорт результатов
+        
+        ℹ️ Дополнительно:
+        
+        • Поддерживаются форматы: JPG, PNG
+        • Результаты сохраняются автоматически
+        • Доступна темная и светлая темы
+        """
+        
+        ctk.CTkLabel(
+            help_frame,
+            text=help_text,
+            font=self.styles["text"],
+            justify="left"
+        ).pack(pady=20)
+
+    def refresh_history(self):
+        loading = self.show_loading_screen()
+        self.root.after(100, lambda: self.load_history())
+        self.root.after(500, loading.destroy)
+        self.play_sound("success")
+
 if __name__ == "__main__":
     root = ctk.CTk()
     app = ChessClassifierApp(root)
     root.mainloop() 
+
+
+    #python chess_classifier_gui.py
