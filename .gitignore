@@ -34,3 +34,7 @@ venv.bak/
 # IDE files
 .idea/
 .vscode/
+
+# Модели нейросетей
+*.hdf5
+best_model*
