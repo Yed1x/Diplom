@@ -9,8 +9,8 @@ import matplotlib.pyplot as plt
 
 # Константы
 IMG_SIZE = 224
-BATCH_SIZE = 32
-EPOCHS = 30
+BATCH_SIZE = 64
+EPOCHS = 20
 LEARNING_RATE = 0.001
 
 def create_data_generators(train_dir, val_dir):
@@ -70,6 +70,27 @@ def create_model(num_classes):
 
     return model
 
+def create_simple_cnn_model(num_classes):
+    # Используем предобученную MobileNetV2
+    base_model = tf.keras.applications.MobileNetV2(
+        input_shape=(IMG_SIZE, IMG_SIZE, 3),
+        include_top=False,
+        weights='imagenet'
+    )
+    
+    # Замораживаем веса базовой модели
+    base_model.trainable = False
+    
+    model = models.Sequential([
+        base_model,
+        layers.GlobalAveragePooling2D(),
+        layers.Dense(128, activation='relu'),
+        layers.Dropout(0.2),
+        layers.Dense(num_classes, activation='softmax')
+    ])
+    
+    return model
+
 def compute_class_weights(generator):
     class_weights = compute_class_weight(
         class_weight='balanced',
@@ -78,15 +99,15 @@ def compute_class_weights(generator):
     )
     return dict(enumerate(class_weights))
 
-def train_model():
+def train_model(use_simple_cnn=False):
     # Пути к данным
-    train_dir = 'data/augmented_train'  # Используем аугментированные данные
-    val_dir = 'data/val'
+    train_dir = 'data/balanced_train'
+    val_dir = 'data/balanced_val'
 
     # Создаем генераторы данных с дополнительной аугментацией на лету
     train_datagen = ImageDataGenerator(
         rescale=1./255,
-        rotation_range=10,  # Уменьшили с 20 до 10, так как основная аугментация уже сделана
+        rotation_range=10,
         width_shift_range=0.1,
         height_shift_range=0.1,
         shear_range=0.1,
@@ -95,11 +116,9 @@ def train_model():
         fill_mode='nearest'
     )
 
-    # Только нормализация для валидационного набора
     val_datagen = ImageDataGenerator(rescale=1./255)
 
-    # Создаем генераторы с правильными классами
-    classes = ['bishop', 'knight', 'pawn', 'queen', 'rook']  # Убрали 'king'
+    classes = ['bishop', 'knight', 'pawn', 'queen', 'rook']
     
     train_generator = train_datagen.flow_from_directory(
         train_dir,
@@ -119,38 +138,37 @@ def train_model():
         shuffle=False
     )
 
-    # Создаем модель с правильным количеством классов
-    model = create_model(num_classes=len(classes))
+    if use_simple_cnn:
+        model = create_simple_cnn_model(num_classes=len(classes))
+    else:
+        model = create_model(num_classes=len(classes))
     
-    # Компилируем модель с измененным learning rate
     model.compile(
         optimizer=tf.keras.optimizers.Adam(learning_rate=LEARNING_RATE),
         loss='categorical_crossentropy',
         metrics=['accuracy']
     )
 
-    # Callbacks с измененными параметрами
     callbacks = [
         ModelCheckpoint(
-            'best_model_5classes.keras',  # Изменили имя файла
+            'best_model_5classes.keras',
             monitor='val_accuracy',
             save_best_only=True,
             mode='max'
         ),
         EarlyStopping(
             monitor='val_loss',
-            patience=7,  # Увеличили patience
+            patience=5,
             restore_best_weights=True
         ),
         ReduceLROnPlateau(
             monitor='val_loss',
             factor=0.2,
-            patience=5,
+            patience=3,
             min_lr=1e-6
         )
     ]
 
-    # Обучаем модель
     history = model.fit(
         train_generator,
         epochs=EPOCHS,
@@ -185,6 +203,48 @@ def plot_training_history(history):
     plt.savefig('training_history.png')
     plt.close()
 
+def visualize_training_examples(generator, num_examples=5):
+    plt.figure(figsize=(15, 3))
+    for i in range(num_examples):
+        images, labels = next(generator)
+        for j in range(min(5, len(images))):
+            plt.subplot(1, 5, j + 1)
+            plt.imshow(images[j])
+            class_idx = np.argmax(labels[j])
+            class_name = list(generator.class_indices.keys())[class_idx]
+            plt.title(f'Class: {class_name}')
+            plt.axis('off')
+    plt.tight_layout()
+    plt.savefig('training_examples.png')
+    plt.close()
+
 if __name__ == "__main__":
-    model, history = train_model()
+    # Создаем генераторы данных
+    train_dir = 'data/balanced_train'
+    val_dir = 'data/balanced_val'
+    
+    train_datagen = ImageDataGenerator(
+        rescale=1./255,
+        rotation_range=10,
+        width_shift_range=0.1,
+        height_shift_range=0.1,
+        shear_range=0.1,
+        zoom_range=0.1,
+        horizontal_flip=True,
+        fill_mode='nearest'
+    )
+
+    train_generator = train_datagen.flow_from_directory(
+        train_dir,
+        target_size=(IMG_SIZE, IMG_SIZE),
+        batch_size=BATCH_SIZE,
+        class_mode='categorical',
+        shuffle=True
+    )
+
+    # Визуализируем примеры
+    visualize_training_examples(train_generator)
+    
+    # Обучаем модель
+    model, history = train_model(use_simple_cnn=True)
     plot_training_history(history) 
