@@ -12,13 +12,13 @@ st.set_page_config(page_title="Chess Classifier Pro", page_icon="♟️", layout
 st.title("🧠♟️ Определение шахматной фигуры — Pro-версия")
 
 # Модель и классы
-model = load_model("chess_model_updated.keras")
+model = load_model("final_model.h5")
 class_labels = {
-    'Queen-Resized': 'Ферзь 👑',
-    'Rook-resize': 'Ладья 🏰',
-    'bishop_resized': 'Слон 🐘',
-    'knight-resize': 'Конь 🐴',
-    'pawn_resized': 'Пешка 🧍‍♂️'
+    'bishop': 'Слон 🐘',
+    'knight': 'Конь 🐴',
+    'pawn': 'Пешка 🧍‍♂️',
+    'queen': 'Ферзь 👑',
+    'rook': 'Ладья 🏰'
 }
 log_file = "predictions_log.csv"
 
