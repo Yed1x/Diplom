@@ -38,3 +38,25 @@ venv.bak/
 # Модели нейросетей
 *.hdf5
 best_model*
+
+# Игнорировать все модели Keras и TensorFlow
+*.h5
+*.hdf5
+*.keras
+saved_model/
+checkpoints/
+*.pb
+*.ckpt
+*.index
+*.data-*
+# Игнорировать модели в любых подпапках
+**/final_model.h5
+**/best_model.h5
+**/best_model_*.keras
+**/model_*.h5
+
+# Игнорировать большие датасеты и архивы
+*.zip
+*.tar
+*.tar.gz
+data/kaggle/

@@ -76,7 +76,7 @@ class ChessClassifierApp:
         
         # Загрузка модели
         try:
-            self.model = load_model("chess_model_updated.keras")
+            self.model = load_model("final_model.h5")
             self.model_loaded = True
         except Exception as e:
             self.model = None
@@ -84,11 +84,11 @@ class ChessClassifierApp:
         
         # Классы фигур
         self.class_labels = {
-            'Queen-Resized': 'Ферзь 👑',
-            'Rook-resize': 'Ладья 🏰',
-            'bishop_resized': 'Слон 🐘',
-            'knight-resize': 'Конь 🐴',
-            'pawn_resized': 'Пешка 🧍‍♂️'
+            'bishop': 'Слон 🐘',
+            'knight': 'Конь 🐴',
+            'pawn': 'Пешка 🧍‍♂️',
+            'queen': 'Ферзь 👑',
+            'rook': 'Ладья 🏰'
         }
         
         self.log_file = "predictions_log.csv"
