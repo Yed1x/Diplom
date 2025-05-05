@@ -97,6 +97,14 @@ if uploaded_files:
         confidence = float(np.max(prediction)) * 100
         predicted_class = class_labels[list(class_labels.keys())[idx]]
 
+        # Топ-3 вероятности
+        top3_idx = np.argsort(prediction)[::-1][:3]
+        top3_labels = [list(class_labels.values())[i] for i in top3_idx]
+        top3_probs = [prediction[i]*100 for i in top3_idx]
+        st.info("Топ-3 вероятности:")
+        for label, prob in zip(top3_labels, top3_probs):
+            st.write(f"{label}: {prob:.2f}%")
+
         st.success(f"🟢 Модель определила: **{predicted_class}**, цвет: **{fig_color}**, уверенность: **{confidence:.2f}%**")
 
         # 📊 График уверенности
