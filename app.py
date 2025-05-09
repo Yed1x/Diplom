@@ -8,7 +8,48 @@ import os
 from datetime import datetime
 import matplotlib.pyplot as plt
 
+# Настройка темы и цветов
 st.set_page_config(page_title="Chess Classifier Pro", page_icon="♟️", layout="centered")
+
+# Кастомные стили
+st.markdown("""
+    <style>
+    .main {
+        background-color: #f5f5f5;
+    }
+    .stTitle {
+        color: #2c3e50;
+    }
+    .stSubheader {
+        color: #34495e;
+    }
+    .stSuccess {
+        background-color: #d4edda;
+        color: #155724;
+    }
+    .stInfo {
+        background-color: #cce5ff;
+        color: #004085;
+    }
+    .stWarning {
+        background-color: #fff3cd;
+        color: #856404;
+    }
+    .stError {
+        background-color: #f8d7da;
+        color: #721c24;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+# Настройка стиля графиков
+plt.style.use('seaborn')
+plt.rcParams['figure.facecolor'] = '#f5f5f5'
+plt.rcParams['axes.facecolor'] = '#ffffff'
+plt.rcParams['axes.edgecolor'] = '#2c3e50'
+plt.rcParams['text.color'] = '#2c3e50'
+plt.rcParams['axes.labelcolor'] = '#2c3e50'
+
 st.title("🧠♟️ Определение шахматной фигуры — Pro-версия")
 
 # Модель и классы
