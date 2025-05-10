@@ -18,6 +18,7 @@ from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
 from reportlab.lib.styles import getSampleStyleSheet
 from idlelib.tooltip import Hovertip
 import time  # для анимаций
+import cv2
 
 class ChessClassifierApp:
     def __init__(self, root):
@@ -576,50 +577,66 @@ class ChessClassifierApp:
     
     def detect_color(self, file_path):
         try:
-            # Открываем изображение и конвертируем в оттенки серого
-            img = Image.open(file_path).convert("L")
+            # Открываем изображение в RGB
+            img = Image.open(file_path).convert("RGB")
             arr = np.array(img)
             
             # Получаем размеры изображения
-            h, w = arr.shape
+            h, w, _ = arr.shape
             
             # Вычисляем центр и размер области для анализа
             cx, cy = w // 2, h // 2
-            s = min(h, w) // 3  # Уменьшаем размер области анализа
+            s = min(h, w) // 2  # Увеличиваем область анализа
             
             # Вырезаем центральную область
             crop = arr[cy - s//2:cy + s//2, cx - s//2:cx + s//2]
             
-            # Применяем пороговую обработку для отделения фигуры от фона
-            threshold = 200  # Порог для отделения фигуры от фона
-            figure_pixels = crop[crop < threshold]
+            # Конвертируем в HSV для лучшего анализа цвета
+            hsv = cv2.cvtColor(crop, cv2.COLOR_RGB2HSV)
+            
+            # Определяем маску фигуры
+            # Используем адаптивный порог для определения фигуры
+            gray = cv2.cvtColor(crop, cv2.COLOR_RGB2GRAY)
+            blur = cv2.GaussianBlur(gray, (5, 5), 0)
+            thresh = cv2.adaptiveThreshold(blur, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
+                                         cv2.THRESH_BINARY_INV, 11, 2)
+            
+            # Находим контуры
+            contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            
+            if not contours:
+                return "Не удалось определить цвет ❔", 0
+            
+            # Берем самый большой контур
+            main_contour = max(contours, key=cv2.contourArea)
+            
+            # Создаем маску для фигуры
+            mask = np.zeros_like(gray)
+            cv2.drawContours(mask, [main_contour], -1, 255, -1)
+            
+            # Анализируем цвет только внутри маски
+            figure_pixels = hsv[mask > 0]
             
             if len(figure_pixels) == 0:
                 return "Не удалось определить цвет ❔", 0
             
-            # Используем гистограмму для анализа распределения яркости
-            hist, bins = np.histogram(figure_pixels, bins=3)
-            dark_pixels = np.sum(hist[:2])  # Количество темных пикселей
-            light_pixels = hist[2]  # Количество светлых пикселей
+            # Анализируем насыщенность и яркость
+            saturation = figure_pixels[:, 1]
+            value = figure_pixels[:, 2]
             
-            # Вычисляем среднюю яркость только для пикселей фигуры
-            mean = np.mean(figure_pixels)
+            # Вычисляем средние значения
+            mean_saturation = np.mean(saturation)
+            mean_value = np.mean(value)
             
-            # Определяем цвет на основе соотношения темных и светлых пикселей
-            # и средней яркости
-            if dark_pixels > light_pixels and mean < 150:
-                return "Чёрная ♟️", mean
-            elif light_pixels > dark_pixels and mean > 100:
-                return "Белая ♙", mean
+            # Определяем цвет на основе насыщенности и яркости
+            if mean_value < 100:  # Темные пиксели
+                return "Чёрная ♟️", mean_value
+            elif mean_value > 150 and mean_saturation < 50:  # Светлые пиксели с низкой насыщенностью
+                return "Белая ♙", mean_value
             else:
-                # Используем дополнительный анализ для неоднозначных случаев
-                std_dev = np.std(figure_pixels)
-                if std_dev < 40:  # Если разброс яркости небольшой
-                    return "Чёрная ♟️" if mean < 127 else "Белая ♙", mean
-                else:
-                    # Анализируем распределение яркости
-                    dark_ratio = np.sum(figure_pixels < 127) / len(figure_pixels)
-                    return "Чёрная ♟️" if dark_ratio > 0.5 else "Белая ♙", mean
+                # Дополнительный анализ для неоднозначных случаев
+                dark_ratio = np.sum(value < 127) / len(value)
+                return "Чёрная ♟️" if dark_ratio > 0.6 else "Белая ♙", mean_value
                 
         except Exception as e:
             return f"Ошибка определения цвета: {e}", 0
