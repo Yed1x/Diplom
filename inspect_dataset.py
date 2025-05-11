@@ -1,33 +1,30 @@
-import os
-import random
+import json
 import matplotlib.pyplot as plt
-from tensorflow.keras.preprocessing.image import load_img
 
-def inspect_folder(folder, classes, n_show=5):
-    print(f'Папка: {folder}')
-    for class_name in classes:
-        class_path = os.path.join(folder, class_name)
-        images = [f for f in os.listdir(class_path) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
-        print(f'  {class_name}: {len(images)} файлов')
-        # Показываем примеры
-        if len(images) > 0:
-            sample_imgs = random.sample(images, min(n_show, len(images)))
-            fig, axes = plt.subplots(1, len(sample_imgs), figsize=(12, 3))
-            fig.suptitle(f'{class_name} ({folder})')
-            for ax, img_name in zip(axes, sample_imgs):
-                img_path = os.path.join(class_path, img_name)
-                img = load_img(img_path)
-                ax.imshow(img)
-                ax.axis('off')
-            plt.show()
-        else:
-            print(f'    Нет изображений для класса {class_name}')
+# Загрузка истории из JSON
+with open('stats.json', 'r') as f:
+    history = json.load(f)
 
-def main():
-    random.seed(42)
-    classes = ['bishop', 'knight', 'pawn', 'queen', 'rook']
-    inspect_folder('data/balanced_train', classes)
-    inspect_folder('data/balanced_val', classes)
+# Построение графика accuracy
+plt.figure(figsize=(8, 5))
+plt.plot(history['accuracy'], label='Train accuracy')
+plt.plot(history['val_accuracy'], label='Validation accuracy')
+plt.title('График точности обучения')
+plt.xlabel('Эпоха')
+plt.ylabel('Точность')
+plt.legend()
+plt.grid(True)
+plt.savefig('training_accuracy.png')
+plt.show()
 
-if __name__ == '__main__':
-    main() 
+# Построение графика loss
+plt.figure(figsize=(8, 5))
+plt.plot(history['loss'], label='Train loss')
+plt.plot(history['val_loss'], label='Validation loss')
+plt.title('График функции потерь')
+plt.xlabel('Эпоха')
+plt.ylabel('Loss')
+plt.legend()
+plt.grid(True)
+plt.savefig('training_loss.png')
+plt.show()

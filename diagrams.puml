@@ -1,0 +1,107 @@
+@startuml UseCase
+left to right direction
+skinparam packageStyle rectangle
+
+actor Пользователь
+actor Администратор
+actor "Система классификации" as System
+
+rectangle "Система классификации шахматных фигур" {
+  usecase "Загрузка изображения" as UC1
+  usecase "Классификация фигуры" as UC2
+  usecase "Просмотр истории" as UC3
+  usecase "Управление моделью" as UC4
+  usecase "Просмотр статистики" as UC5
+}
+
+Пользователь --> UC1
+Пользователь --> UC3
+Пользователь --> UC5
+Администратор --> UC4
+System --> UC2
+UC1 --> UC2
+@enduml
+
+@startuml Sequence
+actor Пользователь
+participant "Веб-интерфейс/GUI" as UI
+participant "Система обработки" as System
+participant "Модель классификации" as Model
+database "База данных" as DB
+
+Пользователь -> UI: Загрузка изображения
+UI -> System: Передача изображения
+System -> System: Предварительная обработка
+System -> Model: Отправка обработанного изображения
+Model -> Model: Классификация
+Model -> DB: Сохранение результата
+DB -> UI: Возврат результата
+UI -> Пользователь: Отображение результата
+@enduml
+
+@startuml Functions
+package "Модуль пользовательского интерфейса" {
+  [Загрузка изображений]
+  [Отображение результатов]
+  [Управление историей]
+}
+
+package "Модуль обработки данных" {
+  [Предварительная обработка]
+  [Нормализация]
+  [Аугментация]
+}
+
+package "Модуль классификации" {
+  [Управление моделью]
+  [Выполнение классификации]
+}
+
+package "Модуль хранения данных" {
+  [Сохранение результатов]
+  [Ведение статистики]
+}
+
+[Загрузка изображений] --> [Предварительная обработка]
+[Предварительная обработка] --> [Выполнение классификации]
+[Выполнение классификации] --> [Сохранение результатов]
+[Сохранение результатов] --> [Отображение результатов]
+@enduml
+
+@startuml Gantt
+!theme plain
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam ganttBorderColor black
+skinparam ganttBarColor black
+skinparam ganttBarBorderColor black
+
+Project starts 2024-02-01
+Project ends 2024-06-30
+
+[Подготовительный этап] as prep starts 2024-02-01 and ends 2024-02-20
+[Анализ требований] as req starts 2024-02-01 and ends 2024-02-15
+[Настройка среды] as env starts 2024-02-16 and ends 2024-02-20
+
+[Разработка базовых компонентов] as base starts 2024-02-21 and ends 2024-03-20
+[Обработка данных] as data starts 2024-02-21 and ends 2024-03-05
+[Базовая модель] as model starts 2024-03-06 and ends 2024-03-20
+
+[Разработка основных компонентов] as main starts 2024-03-21 and ends 2024-04-25
+[Веб-интерфейс] as web starts 2024-03-21 and ends 2024-04-05
+[GUI приложение] as gui starts 2024-04-06 and ends 2024-04-15
+[Интеграция] as integ starts 2024-04-16 and ends 2024-04-25
+
+[Тестирование и оптимизация] as test starts 2024-04-26 and ends 2024-05-25
+[Тестирование модели] as model_test starts 2024-04-26 and ends 2024-05-05
+[Тестирование интерфейсов] as ui_test starts 2024-05-06 and ends 2024-05-15
+[Интеграционное тестирование] as int_test starts 2024-05-16 and ends 2024-05-25
+
+[Документация и развертывание] as deploy starts 2024-05-26 and ends 2024-06-30
+[Написание документации] as doc starts 2024-05-26 and ends 2024-06-05
+[Подготовка к развертыванию] as prep_deploy starts 2024-06-06 and ends 2024-06-15
+[Финальное тестирование] as final starts 2024-06-16 and ends 2024-06-30
+
+@enduml 
