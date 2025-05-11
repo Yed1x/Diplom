@@ -7,6 +7,7 @@ import pandas as pd
 import os
 from datetime import datetime
 import matplotlib.pyplot as plt
+import csv
 
 # Настройка темы и цветов
 st.set_page_config(page_title="Chess Classifier Pro", page_icon="♟️", layout="centered")
@@ -43,12 +44,14 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # Настройка стиля графиков
-plt.style.use('seaborn')
+plt.style.use('seaborn-v0_8')
 plt.rcParams['figure.facecolor'] = '#f5f5f5'
 plt.rcParams['axes.facecolor'] = '#ffffff'
 plt.rcParams['axes.edgecolor'] = '#2c3e50'
 plt.rcParams['text.color'] = '#2c3e50'
 plt.rcParams['axes.labelcolor'] = '#2c3e50'
+
+print(plt.style.available)
 
 st.title("🧠♟️ Определение шахматной фигуры — Pro-версия")
 
@@ -62,6 +65,24 @@ class_labels = {
     'rook': 'Ладья 🏰'
 }
 log_file = "predictions_log.csv"
+
+# Автоматическая инициализация лога, если файл отсутствует или повреждён
+if not os.path.exists(log_file):
+    with open(log_file, 'w', encoding='utf-8-sig', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(["Файл", "Класс", "Цвет", "Уверенность"])
+else:
+    # Проверяем корректность заголовков
+    try:
+        with open(log_file, 'r', encoding='utf-8-sig') as f:
+            reader = csv.reader(f)
+            headers = next(reader)
+            if headers != ["Файл", "Класс", "Цвет", "Уверенность"]:
+                raise ValueError
+    except Exception:
+        with open(log_file, 'w', encoding='utf-8-sig', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(["Файл", "Класс", "Цвет", "Уверенность"])
 
 # 🎨 Определение цвета и вывод кропа
 def detect_color_preview(uploaded_file):
@@ -91,9 +112,28 @@ def detect_color_preview(uploaded_file):
 # 🧾 История с фильтрацией
 if os.path.exists(log_file):
     try:
-        df_log = pd.read_csv(log_file, encoding='utf-8', errors='replace')
-        if "Цвет" not in df_log.columns:
-            df_log["Цвет"] = "—"
+        # Пробуем разные кодировки
+        encodings = ['utf-8-sig', 'utf-8', 'cp1251']
+        df_log = None
+        
+        for encoding in encodings:
+            try:
+                df_log = pd.read_csv(log_file, encoding=encoding)
+                break
+            except UnicodeDecodeError:
+                continue
+        
+        if df_log is None:
+            raise ValueError("Не удалось прочитать файл ни с одной кодировкой")
+            
+        # Проверяем наличие всех необходимых колонок
+        required_columns = ["Файл", "Класс", "Цвет", "Уверенность"]
+        missing_columns = [col for col in required_columns if col not in df_log.columns]
+        
+        if missing_columns:
+            # Если каких-то колонок нет, добавляем их
+            for col in missing_columns:
+                df_log[col] = "—"
         
         # Фильтры
         st.subheader("📋 История предсказаний")
@@ -102,14 +142,22 @@ if os.path.exists(log_file):
         
         # Применяем фильтры
         if color_filter != "Все":
-            df_log = df_log[df_log["Цвет"] == color_filter]
+            df_log = df_log[df_log["Цвет"].str.contains(color_filter, na=False)]
         
         if class_filter != "Все":
             df_log = df_log[df_log["Класс"] == class_filter]
         
-        st.dataframe(df_log.tail(5), use_container_width=True)
-    except:
-        st.warning("⚠️ Лог повреждён или не читается")
+        if not df_log.empty:
+            st.dataframe(df_log.tail(5), use_container_width=True)
+        else:
+            st.info("История пуста")
+            
+    except Exception as e:
+        st.warning(f"⚠️ Проблема с чтением лога: {str(e)}")
+        # Создаем новый файл лога
+        with open(log_file, 'w', encoding='utf-8-sig', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(["Файл", "Класс", "Цвет", "Уверенность"])
 
 # 📤 Загрузка и предсказание для нескольких изображений
 uploaded_files = st.file_uploader("Загрузите изображения фигур", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
