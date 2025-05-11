@@ -5,6 +5,7 @@ import tensorflow as tf
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 import matplotlib.pyplot as plt
 from tqdm import tqdm
+from tensorflow.keras.utils import load_img, img_to_array
 
 def create_augmentation_generator():
     """
@@ -25,7 +26,7 @@ def create_augmentation_generator():
 
 def augment_class(input_dir, output_dir, class_name, target_count):
     """
-    Аугментирует изображения класса до целевого количества
+    Аугментирует изображения класса до целевого количества и всегда копирует оригиналы в целевую папку
     """
     class_path = os.path.join(input_dir, class_name)
     output_path = os.path.join(output_dir, class_name)
@@ -35,15 +36,20 @@ def augment_class(input_dir, output_dir, class_name, target_count):
     images = [f for f in os.listdir(class_path) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
     current_count = len(images)
     
-    if current_count >= target_count:
-        print(f"Класс {class_name} уже имеет достаточно изображений ({current_count})")
+    if current_count == 0:
+        print(f"ВНИМАНИЕ: В классе {class_name} нет изображений! Пропускаем.")
         return
-    
-    # Копируем оригинальные изображения
+
+    # Копируем оригинальные изображения ВСЕГДА
     for img_name in images:
         src_path = os.path.join(class_path, img_name)
         dst_path = os.path.join(output_path, img_name)
-        Image.open(src_path).save(dst_path)
+        if not os.path.exists(dst_path):
+            Image.open(src_path).save(dst_path)
+
+    if current_count >= target_count:
+        print(f"Класс {class_name} уже имеет достаточно изображений ({current_count}) — копии созданы.")
+        return
     
     # Создаем генератор аугментации
     datagen = create_augmentation_generator()
@@ -120,21 +126,17 @@ def visualize_augmentations(input_dir, output_dir, class_name):
     plt.close()
 
 def main():
-    input_dir = 'data/merged'
-    output_dir = 'data/augmented'
-    target_count = 1000  # Целевое количество изображений для каждого класса
-    
-    # Создаем выходную директорию
+    input_dir = 'data/balanced_train'
+    output_dir = 'data/balanced_train_augmented'
+    target_count = 1000  # или больше, если нужно
+
     os.makedirs(output_dir, exist_ok=True)
-    
-    # Получаем список классов
     classes = [d for d in os.listdir(input_dir) if os.path.isdir(os.path.join(input_dir, d))]
-    
-    # Аугментируем каждый класс
+
     for class_name in classes:
         augment_class(input_dir, output_dir, class_name, target_count)
         visualize_augmentations(input_dir, output_dir, class_name)
-    
+
     print("\nАугментация завершена!")
     print(f"Результаты сохранены в директории: {output_dir}")
 
