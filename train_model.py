@@ -36,17 +36,17 @@ def create_model():
     
     return model
 
-def create_data_generators():
+def create_data_generators(train_dir, val_dir):
     """
     Создает генераторы данных для обучения и валидации
     """
     train_datagen = ImageDataGenerator(
         rescale=1./255,
         rotation_range=20,
-        width_shift_range=0.1,
-        height_shift_range=0.1,
-        shear_range=0.1,
-        zoom_range=0.1,
+        width_shift_range=0.2,
+        height_shift_range=0.2,
+        shear_range=0.2,
+        zoom_range=0.2,
         horizontal_flip=True,
         fill_mode='nearest'
     )
@@ -54,7 +54,7 @@ def create_data_generators():
     val_datagen = ImageDataGenerator(rescale=1./255)
     
     train_generator = train_datagen.flow_from_directory(
-        'data/augmented',
+        train_dir,
         target_size=(IMG_SIZE, IMG_SIZE),
         batch_size=BATCH_SIZE,
         class_mode='categorical',
@@ -62,7 +62,7 @@ def create_data_generators():
     )
     
     val_generator = val_datagen.flow_from_directory(
-        'data/merged',
+        val_dir,
         target_size=(IMG_SIZE, IMG_SIZE),
         batch_size=BATCH_SIZE,
         class_mode='categorical',
@@ -138,7 +138,7 @@ def main():
     )
     
     # Создаем генераторы данных
-    train_generator, val_generator = create_data_generators()
+    train_generator, val_generator = create_data_generators('data/augmented', 'data/merged')
     
     # Создаем callbacks
     callbacks = create_callbacks()
@@ -176,7 +176,7 @@ def main():
     history_fine = model.fit(
         train_generator,
         validation_data=val_generator,
-        epochs=20,
+        epochs=50,
         callbacks=callbacks,
         verbose=1
     )

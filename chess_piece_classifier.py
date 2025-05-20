@@ -218,6 +218,12 @@ def visualize_training_examples(generator, num_examples=5):
     plt.savefig('training_examples.png')
     plt.close()
 
+def print_model_summary(model):
+    """
+    Выводит подробную структуру модели
+    """
+    model.summary(show_trainable=True)
+
 if __name__ == "__main__":
     # Создаем генераторы данных
     train_dir = 'data/balanced_train'
@@ -242,9 +248,14 @@ if __name__ == "__main__":
         shuffle=True
     )
 
+    # Создаем и выводим структуру модели
+    model = create_model(num_classes=len(train_generator.class_indices))
+    print("\nСтруктура модели:")
+    print_model_summary(model)
+    
     # Визуализируем примеры
     visualize_training_examples(train_generator)
     
     # Обучаем модель
-    model, history = train_model(use_simple_cnn=True)
+    model, history = train_model(use_simple_cnn=False)
     plot_training_history(history) 
