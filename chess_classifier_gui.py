@@ -19,6 +19,7 @@ from reportlab.lib.styles import getSampleStyleSheet
 from idlelib.tooltip import Hovertip
 import time  # для анимаций
 import cv2
+import threading # Для выполнения обработки в отдельном потоке
 
 class ChessClassifierApp:
     def __init__(self, root):
@@ -989,7 +990,9 @@ class ChessClassifierApp:
         fig1, ax1 = plt.subplots(figsize=(8, 4))
         classes = list(self.stats['by_class'].keys())
         values = list(self.stats['by_class'].values())
-        ax1.bar(classes, values)
+        # Удаляем эмодзи из названий классов для графика
+        cleaned_classes = [name.split(' ')[0] for name in classes]
+        ax1.bar(cleaned_classes, values)
         ax1.set_title("Распределение по классам фигур")
         ax1.tick_params(axis='x', rotation=45)
         
@@ -1001,7 +1004,9 @@ class ChessClassifierApp:
         fig2, ax2 = plt.subplots(figsize=(8, 4))
         colors = list(self.stats['by_color'].keys())
         color_values = list(self.stats['by_color'].values())
-        ax2.pie(color_values, labels=colors, autopct='%1.1f%%')
+        # Удаляем эмодзи из названий цветов для графика
+        cleaned_colors = [name.split(' ')[0] for name in colors]
+        ax2.pie(color_values, labels=cleaned_colors, autopct='%1.1f%%')
         ax2.set_title("Распределение по цветам")
         
         canvas2 = FigureCanvasTkAgg(fig2, general_frame)
@@ -1065,20 +1070,162 @@ class ChessClassifierApp:
     def open_batch_window(self):
         folder = filedialog.askdirectory(title="Выберите папку с изображениями")
         if folder:
+            image_files = [
+                os.path.join(folder, f) for f in os.listdir(folder)
+                if f.lower().endswith(('.png', '.jpg', '.jpeg'))
+            ]
+
+            if not image_files:
+                messagebox.showinfo("Информация", "В выбранной папке нет изображений (JPG, PNG)")
+                return
+
+            total_files = len(image_files)
+
             progress_window = ctk.CTkToplevel(self.root)
             progress_window.title("Обработка изображений")
             progress_window.geometry("400x200")
+            progress_window.transient(self.root) # Сделать окно модальным
             
             progress_label = ctk.CTkLabel(
                 progress_window,
-                text="Обработка изображений...",
+                text=f"Обработка изображений... 0/{total_files}",
                 font=ctk.CTkFont(size=14)
             )
             progress_label.pack(pady=20)
             
             progress_bar = ctk.CTkProgressBar(progress_window)
-            progress_bar.pack(pady=10)
+            progress_bar.pack(pady=10, padx=20, fill=tk.X)
             progress_bar.set(0)
+
+            processed_count = 0
+
+            def process_batch():
+                nonlocal processed_count
+                results = []
+                for i, file_path in enumerate(image_files):
+                    try:
+                        # Используем функцию process_image для обработки каждого файла
+                        # Однако, process_image обновляет основной GUI, что вызовет ошибку в отдельном потоке
+                        # Поэтому скопируем логику обработки сюда или вынесем её
+                        # Временно скопируем логику обработки для пакетного режима
+                        # В реальном проекте лучше вынести логику классификации в отдельную функцию
+                        fig_color, _ = self.detect_color(file_path)
+
+                        if self.model_loaded:
+                            img_tensor = image.load_img(file_path, target_size=(224, 224))
+                            x = image.img_to_array(img_tensor)
+                            x = np.expand_dims(x, axis=0) / 255.0
+
+                            prediction = self.model.predict(x, verbose=0)[0]
+                            idx = np.argmax(prediction)
+                            confidence = float(np.max(prediction)) * 100
+                            predicted_class = self.class_labels[list(self.class_labels.keys())[idx]]
+
+                            results.append({
+                                "Файл": os.path.basename(file_path),
+                                "Класс": predicted_class,
+                                "Цвет": fig_color,
+                                "Уверенность": f"{confidence:.1f}%"
+                            })
+
+                            # Обновляем статистику (нужно делать в основном потоке Tkinter)
+                            self.root.after(0, self.update_stats, predicted_class, fig_color)
+                            self.root.after(0, self.save_to_history, os.path.basename(file_path), predicted_class, fig_color, f"{confidence:.1f}%")
+
+                        else:
+                            results.append({
+                                "Файл": os.path.basename(file_path),
+                                "Класс": "Ошибка",
+                                "Цвет": "Ошибка",
+                                "Уверенность": "0%"
+                            })
+
+                    except Exception as e:
+                        print(f"Ошибка обработки файла {file_path}: {e}")
+                        results.append({
+                             "Файл": os.path.basename(file_path),
+                             "Класс": "Ошибка",
+                             "Цвет": "Ошибка",
+                             "Уверенность": "0%"
+                        })
+
+                    processed_count += 1
+                    progress = processed_count / total_files
+                    # Обновляем GUI (нужно делать в основном потоке Tkinter)
+                    self.root.after(0, progress_bar.set, progress)
+                    self.root.after(0, progress_label.configure, text=f"Обработка изображений... {processed_count}/{total_files}")
+
+
+                # После завершения обработки, показываем сводку результатов и закрываем окно прогресса
+                self.root.after(0, progress_window.destroy)
+                self.root.after(0, self.show_batch_results, results) # Показываем результаты в новом окне
+
+
+            # Запускаем обработку в отдельном потоке, чтобы не зависал GUI
+            threading.Thread(target=process_batch).start()
+
+    def show_batch_results(self, results):
+        """Отображает результаты пакетной обработки в новом окне."""
+        results_window = ctk.CTkToplevel(self.root)
+        results_window.title("Результаты пакетной обработки")
+        results_window.geometry("600x400")
+
+        # Создание таблицы для результатов
+        table_frame = ctk.CTkFrame(results_window)
+        table_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+        style = ttk.Style()
+        style.configure(
+            "Batch.Treeview",
+            background="#2a2d2e",
+            foreground="white",
+            fieldbackground="#2a2d2e",
+            borderwidth=0
+        )
+        style.configure(
+            "Batch.Treeview.Heading",
+            background="#2a2d2e",
+            foreground="white",
+            borderwidth=1
+        )
+
+        columns = ("Файл", "Класс", "Цвет", "Уверенность")
+        results_tree = ttk.Treeview(
+            table_frame,
+            columns=columns,
+            show="headings",
+            style="Batch.Treeview"
+        )
+
+        for col in columns:
+            results_tree.heading(col, text=col)
+            results_tree.column(col, width=120)
+
+        scrollbar = ctk.CTkScrollbar(
+            table_frame,
+            command=results_tree.yview
+        )
+        results_tree.configure(yscrollcommand=scrollbar.set)
+
+        results_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        # Заполнение таблицы результатами
+        for row in results:
+            results_tree.insert("", tk.END, values=(
+                row["Файл"],
+                row["Класс"],
+                row["Цвет"],
+                row["Уверенность"]
+            ))
+
+        # Добавляем кнопку закрытия
+        close_button = ctk.CTkButton(
+            results_window,
+            text="Закрыть",
+            command=results_window.destroy
+        )
+        close_button.pack(pady=10)
 
     def add_settings(self):
         # Добавляем кнопку настроек в toolbar с новым дизайном
