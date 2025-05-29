@@ -20,6 +20,7 @@ from idlelib.tooltip import Hovertip
 import time  # для анимаций
 import cv2
 import threading # Для выполнения обработки в отдельном потоке
+import sys # Импортируем sys
 
 class ChessClassifierApp:
     def __init__(self, root):
@@ -76,9 +77,18 @@ class ChessClassifierApp:
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("blue")
         
-        # Загрузка модели
+        # Загрузка модели (может занять время, делаем это перед показом главного окна)
         try:
-            self.model = load_model("final_model.h5")
+            # Определяем базовый путь для ресурсов
+            if getattr(sys, 'frozen', False):
+                # Если запущен из PyInstaller
+                base_path = sys._MEIPASS
+            else:
+                # Если запущен как обычный скрипт
+                base_path = os.path.dirname(__file__)
+
+            model_path = os.path.join(base_path, "final_model.h5")
+            self.model = load_model(model_path) # Используем полный путь к модели
             self.model_loaded = True
         except Exception as e:
             self.model = None
@@ -103,18 +113,133 @@ class ChessClassifierApp:
         }
         
         self.load_stats()
+        
+        # Создаем фрейм для приветственного экрана
+        self.splash_frame = ctk.CTkFrame(self.root)
+        self.splash_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Создаем виджеты приветственного экрана
+        self.create_splash_widgets()
+
+    def create_splash_widgets(self):
+        # Фон для приветственного экрана
+        try:
+            # Определяем базовый путь для ресурсов
+            if getattr(sys, 'frozen', False):
+                base_path = sys._MEIPASS
+            else:
+                base_path = os.path.dirname(__file__)
+
+            # Указываем имя файла фонового изображения
+            background_image_path = os.path.join(base_path, "Fon.jpg") # <--- ОБНОВЛЕНО
+            
+            # Загружаем и изменяем размер изображения под размер окна
+            original_image = Image.open(background_image_path)
+            
+            # Получаем текущие размеры окна
+            window_width = self.root.winfo_width()
+            window_height = self.root.winfo_height()
+            
+            # Проверяем, если размеры окна еще не определены, используем дефолтные
+            if window_width == 1 or window_height == 1:
+                 window_width = 1200 # Дефолтная ширина
+                 window_height = 800 # Дефолтная высота
+                 
+            resized_image = original_image.resize((window_width, window_height), Image.LANCZOS)
+            self.splash_background_image = ImageTk.PhotoImage(resized_image)
+
+            # Создаем метку с фоновым изображением
+            self.splash_background_label = ctk.CTkLabel(
+                self.splash_frame,
+                image=self.splash_background_image,
+                text=""
+            )
+            self.splash_background_label.place(x=0, y=0, relwidth=1, relheight=1)
+            
+            # Обновляем размер фона при изменении размера окна
+            self.root.bind('<Configure>', self.resize_splash_background)
+
+        except Exception as e:
+            print(f"Ошибка загрузки фонового изображения: {e}")
+            # Если фон не загрузился, используем цвет
+            self.splash_frame.configure(fg_color=self.color_scheme["background"])
+
+        # Виджеты для приветственного экрана поверх фона
+        ctk.CTkLabel(
+            self.splash_frame,
+            text="Chess Piece Classifier Pro",
+            font=self.styles["heading"],
+            text_color="white" # Убедимся, что текст виден на фоне
+        ).pack(pady=(50, 20))
+        
+        ctk.CTkLabel(
+            self.splash_frame,
+            text="Добро пожаловать!",
+            font=self.styles["subheading"],
+            text_color="white" # Убедимся, что текст виден на фоне
+        ).pack(pady=20)
+        
+        start_button = ctk.CTkButton(
+            self.splash_frame,
+            text="Начать работу",
+            command=self.show_main_app,
+            font=self.styles["button"],
+            **self.button_effects["normal"]
+        )
+        start_button.pack(pady=30)
+
+    def resize_splash_background(self, event):
+        # Метод для изменения размера фонового изображения при изменении размера окна
+        if hasattr(self, 'splash_background_label'):
+            try:
+                # Получаем текущие размеры фрейма
+                frame_width = self.splash_frame.winfo_width()
+                frame_height = self.splash_frame.winfo_height()
+                
+                if frame_width > 1 and frame_height > 1:
+                    # Загружаем оригинальное изображение
+                    # Определяем базовый путь для ресурсов
+                    if getattr(sys, 'frozen', False):
+                        base_path = sys._MEIPASS
+                    else:
+                        base_path = os.path.dirname(__file__)
+                    
+                    # Указываем имя файла фонового изображения
+                    background_image_path = os.path.join(base_path, "Fon.jpg") # <--- ОБНОВЛЕНО
+                    
+                    original_image = Image.open(background_image_path)
+                    
+                    # Изменяем размер под текущие размеры фрейма
+                    resized_image = original_image.resize((frame_width, frame_height), Image.LANCZOS)
+                    self.splash_background_image = ImageTk.PhotoImage(resized_image)
+                    
+                    # Обновляем изображение метки
+                    self.splash_background_label.configure(image=self.splash_background_image)
+                    self.splash_background_label.image = self.splash_background_image
+                    
+            except Exception as e:
+                 print(f"Ошибка изменения размера фона: {e}")
+
+    def show_main_app(self):
+        # Скрываем приветственный экран
+        self.splash_frame.destroy()
+        
+        # Создаем и отображаем основной интерфейс
         self.setup_menu()
         self.create_widgets()
         self.add_tooltips()
         self.batch_process()
         self.add_settings()
         self.compare_images()
-        
-        # Добавляем инициализацию новых функций
         self.add_sound_effects()
         self.setup_hotkeys()
         self.setup_drag_and_drop()
         
+        # Обновляем статус модели после загрузки
+        status_text = "✅ Модель загружена" if self.model_loaded else "❌ Ошибка загрузки модели"
+        status_color = self.color_scheme["success"] if self.model_loaded else self.color_scheme["error"]
+        self.status_label.configure(text=status_text, text_color=status_color)
+
     def setup_menu(self):
         menubar = tk.Menu(self.root, bg=self.color_scheme["surface"], fg=self.color_scheme["text"])
         self.root.config(menu=menubar)
